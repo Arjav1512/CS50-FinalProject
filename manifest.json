@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Daily Digital Diary",
+  "version": "1.0",
+  "description": "Tracks what you're doing online so you can stop crying about lost time",
+  "permissions": ["tabs", "history", "storage"],
+  "background": {
+    "service_worker": "trackingtabs.js"
+  },
+  "action": {
+    "default_popup": "ui.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dataextraction.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["script.js", "style.css", "ui.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+body {
+  font-family: 'Courier New', monospace;
+  background: #111;
+  color: #eee;
+  padding: 20px;
+  min-width: 350px;
+  max-width: 450px;
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+h3 {
+  color: #f0f0f0;
+  margin-top: 15px;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  margin-bottom: 8px;
+  padding: 4px 0;
+}
+
+p {
+  margin: 8px 0;
+  line-height: 1.4;
+}
+
+small {
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+#report {
+  max-height: 400px;
+  overflow-y: auto;
+}
