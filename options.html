@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Diary - Settings</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        
+        .options-container {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 32px;
+            border: 1px solid var(--border);
+        }
+        
+        .options-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .options-header h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+        
+        .options-section {
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .options-section:last-child {
+            border-bottom: none;
+        }
+        
+        .options-section h2 {
+            font-size: 1.25rem;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .form-group small {
+            display: block;
+            margin-top: 4px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        
+        .stat-card {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+        
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="options-container">
+        <div class="options-header">
+            <h1>📱 Digital Diary Settings</h1>
+            <p>Configure your digital tracking preferences and integrations</p>
+        </div>
+
+        <!-- Notion Integration -->
+        <div class="options-section">
+            <h2>🔗 Notion Integration</h2>
+            <p>Connect your Notion workspace to automatically export daily summaries.</p>
+            
+            <div class="form-group">
+                <label for="notionApiKey">Notion API Key</label>
+                <input type="password" id="notionApiKey" placeholder="secret_...">
+                <small>Get your API key from <a href="https://www.notion.so/my-integrations" target="_blank">Notion Integrations</a></small>
+            </div>
+            
+            <div class="form-group">
+                <label for="notionDatabaseId">Database ID</label>
+                <input type="text" id="notionDatabaseId" placeholder="Database ID from Notion URL">
+                <small>Copy the database ID from your Notion database URL</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="notionTemplate">Export Template</label>
+                <textarea id="notionTemplate" placeholder="Customize how your data appears in Notion...">Daily Digital Activity Summary
+
+Total Time: {totalTime}
+Productivity Score: {productivityScore}/100
+
+Categories:
+{categoryBreakdown}
+
+Key Takeaways:
+{summaries}</textarea>
+                <small>Use placeholders like {totalTime}, {productivityScore}, etc.</small>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="autoExportNotion">
+                <label for="autoExportNotion">Automatically export to Notion daily</label>
+            </div>
+            
+            <div class="button-group">
+                <button id="testNotionConnection" class="action-btn secondary">Test Connection</button>
+                <button id="saveNotionSettings" class="action-btn primary">Save Settings</button>
+            </div>
+            
+            <div id="notionStatus" class="status-message"></div>
+        </div>
+
+        <!-- Tracking Preferences -->
+        <div class="options-section">
+            <h2>📊 Tracking Preferences</h2>
+            
+            <div class="form-group">
+                <label for="minTrackingTime">Minimum Tracking Time (seconds)</label>
+                <input type="number" id="minTrackingTime" value="5" min="1" max="60">
+                <small>Only track sites visited for at least this many seconds</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="excludedDomains">Excluded Domains</label>
+                <textarea id="excludedDomains" placeholder="example.com&#10;private-site.com">chrome://
+chrome-extension://
+localhost</textarea>
+                <small>One domain per line. These sites won't be tracked.</small>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="trackIncognito">
+                <label for="trackIncognito">Track incognito browsing</label>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableSummaries" checked>
+                <label for="enableSummaries">Enable AI summaries (requires Gemini API key)</label>
+            </div>
+        </div>
+
+        <!-- Gamification Settings -->
+        <div class="options-section">
+            <h2>🎮 Gamification</h2>
+            
+            <div class="form-group">
+                <label for="streakGoal">Daily Streak Goal (minutes of productive time)</label>
+                <input type="number" id="streakGoal" value="30" min="5" max="480">
+                <small>Minimum productive time needed to maintain streak</small>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableNotifications" checked>
+                <label for="enableNotifications">Enable achievement notifications</label>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableGoalReminders">
+                <label for="enableGoalReminders">Remind me to set daily goals</label>
+            </div>
+        </div>
+
+        <!-- Data & Privacy -->
+        <div class="options-section">
+            <h2>🔒 Data & Privacy</h2>
+            
+            <div class="form-group">
+                <label for="dataRetention">Data Retention (days)</label>
+                <select id="dataRetention">
+                    <option value="30">30 days</option>
+                    <option value="90" selected>90 days</option>
+                    <option value="365">1 year</option>
+                    <option value="0">Keep forever</option>
+                </select>
+                <small>Automatically delete old activity data</small>
+            </div>
+            
+            <div class="button-group">
+                <button id="exportAllData" class="action-btn secondary">📤 Export All Data</button>
+                <button id="clearOldData" class="action-btn secondary">🧹 Clear Old Data</button>
+                <button id="resetSettings" class="action-btn danger">🔄 Reset All Settings</button>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="options-section">
+            <h2>📈 Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-number" id="totalDays">0</span>
+                    <div class="stat-label">Days Tracked</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" id="totalTime">0h</span>
+                    <div class="stat-label">Total Time</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" id="totalSites">0</span>
+                    <div class="stat-label">Sites Visited</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" id="longestStreak">0</span>
+                    <div class="stat-label">Longest Streak</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About -->
+        <div class="options-section">
+            <h2>ℹ️ About</h2>
+            <p><strong>Digital Digital Diary</strong> v1.0</p>
+            <p>Built for CS50x 2025 Final Project</p>
+            <p>A privacy-focused digital activity tracker that helps you understand and improve your online habits.</p>
+            
+            <div class="button-group">
+                <button id="viewSource" class="action-btn secondary">📋 View Source Code</button>
+                <button id="reportIssue" class="action-btn secondary">🐛 Report Issue</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="utils.js"></script>
+    <script src="options.js"></script>
+</body>
+</html>

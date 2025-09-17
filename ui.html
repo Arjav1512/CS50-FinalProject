@@ -7,18 +7,172 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>📱 Daily Digital Diary</h1>
-    <div id="report">Loading your digital footprint...</div>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>📱 Digital Diary</h1>
+            <div class="theme-toggle">
+                <button id="themeToggle" class="theme-btn" aria-label="Toggle theme">🌙</button>
+            </div>
+        </header>
 
-    <!-- Debug buttons -->
-    <button id="debugBtn" style="margin-top: 10px; padding: 5px 10px; background: #333; color: #fff; border: 1px solid #555; cursor: pointer;">
-        Debug: Show Raw Data
-    </button>
+        <!-- Navigation -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="home" aria-label="Home">🏠</button>
+            <button class="nav-tab" data-tab="reports" aria-label="Reports">📊</button>
+            <button class="nav-tab" data-tab="goals" aria-label="Goals & Streaks">🎯</button>
+            <button class="nav-tab" data-tab="settings" aria-label="Settings">⚙️</button>
+        </nav>
 
-    <button id="clearDataBtn" style="margin-top: 5px; padding: 5px 10px; background: #d32f2f; color: #fff; border: 1px solid #b71c1c; cursor: pointer;">
-        Clear All Data
-    </button>
+        <!-- Tab Content -->
+        <main class="tab-content">
+            <!-- Home Tab -->
+            <div id="home" class="tab-pane active">
+                <div class="productivity-score">
+                    <div class="score-circle">
+                        <span id="productivityScore">0</span>
+                        <small>Productivity Score</small>
+                    </div>
+                </div>
 
+                <div class="streak-display">
+                    <div class="streak-item">
+                        <span class="streak-number" id="currentStreak">0</span>
+                        <span class="streak-label">Day Streak</span>
+                    </div>
+                    <div class="streak-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="streakProgress"></div>
+                        </div>
+                        <span class="progress-text">Next milestone: 7 days</span>
+                    </div>
+                </div>
+
+                <div id="todayReport" class="today-summary">
+                    <h3>Today's Activity</h3>
+                    <div class="loading">Loading your digital footprint...</div>
+                </div>
+
+                <div class="quick-actions">
+                    <button id="startGoalBtn" class="action-btn primary">🎯 Start Focus Session</button>
+                    <button id="exportNotionBtn" class="action-btn secondary">📝 Export to Notion</button>
+                </div>
+            </div>
+
+            <!-- Reports Tab -->
+            <div id="reports" class="tab-pane">
+                <h3>📊 Activity Reports</h3>
+                
+                <div class="date-range-selector">
+                    <label for="dateRange">Report Period:</label>
+                    <select id="dateRange">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+
+                <div id="customDateRange" class="custom-date-range hidden">
+                    <input type="date" id="startDate">
+                    <input type="date" id="endDate">
+                </div>
+
+                <div class="report-actions">
+                    <button id="generatePdfBtn" class="action-btn primary">📄 Download PDF Report</button>
+                    <button id="refreshReportBtn" class="action-btn secondary">🔄 Refresh Data</button>
+                </div>
+
+                <div id="reportContent" class="report-content">
+                    <!-- Report content will be populated here -->
+                </div>
+            </div>
+
+            <!-- Goals & Streaks Tab -->
+            <div id="goals" class="tab-pane">
+                <h3>🎯 Goals & Achievements</h3>
+                
+                <div class="goal-section">
+                    <h4>Current Goal</h4>
+                    <div id="currentGoal" class="goal-display">
+                        <p>No active goal. Set one below!</p>
+                    </div>
+                    
+                    <div class="goal-setup">
+                        <select id="goalType">
+                            <option value="focus">Focus Session</option>
+                            <option value="learning">Learning Time</option>
+                            <option value="limit">Limit Distractions</option>
+                        </select>
+                        <input type="number" id="goalDuration" placeholder="Minutes" min="5" max="480">
+                        <button id="setGoalBtn" class="action-btn primary">Set Goal</button>
+                    </div>
+                </div>
+
+                <div class="achievements">
+                    <h4>🏆 Achievements</h4>
+                    <div id="achievementsList" class="achievements-grid">
+                        <!-- Achievements will be populated here -->
+                    </div>
+                </div>
+
+                <div class="streak-history">
+                    <h4>📈 Streak History</h4>
+                    <div id="streakChart" class="streak-chart">
+                        <!-- Streak visualization will be here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings" class="tab-pane">
+                <h3>⚙️ Settings</h3>
+                
+                <div class="settings-section">
+                    <h4>🔗 Notion Integration</h4>
+                    <div class="notion-setup">
+                        <input type="password" id="notionApiKey" placeholder="Notion API Key" class="settings-input">
+                        <input type="text" id="notionDatabaseId" placeholder="Database ID" class="settings-input">
+                        <button id="testNotionBtn" class="action-btn secondary">Test Connection</button>
+                        <button id="saveNotionBtn" class="action-btn primary">Save Settings</button>
+                    </div>
+                    <div id="notionStatus" class="status-message"></div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>🎨 Appearance</h4>
+                    <div class="theme-settings">
+                        <label class="setting-item">
+                            <input type="radio" name="theme" value="light"> Light Mode
+                        </label>
+                        <label class="setting-item">
+                            <input type="radio" name="theme" value="dark" checked> Dark Mode
+                        </label>
+                        <label class="setting-item">
+                            <input type="radio" name="theme" value="auto"> Auto (System)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>📊 Data Management</h4>
+                    <div class="data-actions">
+                        <button id="exportDataBtn" class="action-btn secondary">📤 Export All Data</button>
+                        <button id="clearDataBtn" class="action-btn danger">🗑️ Clear All Data</button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>ℹ️ About</h4>
+                    <p class="about-text">Digital Digital Diary v1.0<br>
+                    Built for CS50x 2025 Final Project<br>
+                    <a href="#" id="openOptionsBtn">Open Full Settings</a></p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="utils.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

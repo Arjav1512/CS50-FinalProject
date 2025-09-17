@@ -3,13 +3,14 @@
   "name": "Daily Digital Diary",
   "version": "1.0",
   "description": "Tracks what you're doing online so you can stop crying about lost time",
-  "permissions": ["tabs", "history", "storage"],
+  "permissions": ["tabs", "history", "storage", "activeTab", "identity"],
   "background": {
     "service_worker": "trackingtabs.js"
   },
   "action": {
     "default_popup": "ui.html"
   },
+  "options_page": "options.html",
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -18,8 +19,11 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["script.js", "style.css", "ui.html"],
+      "resources": ["script.js", "style.css", "ui.html", "options.html", "utils.js"],
       "matches": ["<all_urls>"]
     }
+  ],
+  "host_permissions": [
+    "https://api.notion.com/*"
   ]
 }
