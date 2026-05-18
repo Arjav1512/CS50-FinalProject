@@ -8,7 +8,8 @@ class DigitalDiary {
     this.streakData = { current: 0, longest: 0 };
     this.achievements = [];
     this.currentGoal = null;
-    
+    this.goalCountdownInterval = null;
+
     this.init();
   }
 
@@ -48,10 +49,10 @@ class DigitalDiary {
   }
 
   setupEventListeners() {
-    // Tab navigation
+    // Tab navigation — use currentTarget so SVG children don't break the lookup
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
-        const tabName = e.target.dataset.tab;
+        const tabName = e.currentTarget.dataset.tab;
         this.switchTab(tabName);
       });
     });
@@ -166,9 +167,15 @@ class DigitalDiary {
   }
 
   renderHome() {
-    // Update productivity score
     const score = Utils.calculateProductivityScore(this.activityLog);
     document.getElementById('productivityScore').textContent = score;
+
+    // Animate SVG ring (circumference of r=52 circle ≈ 326.73)
+    const ring = document.getElementById('scoreRingFill');
+    if (ring) {
+      const circumference = 326.73;
+      ring.style.strokeDashoffset = circumference - (score / 100) * circumference;
+    }
 
     // Update streak display
     document.getElementById('currentStreak').textContent = this.streakData.current;
@@ -205,19 +212,37 @@ class DigitalDiary {
       domainBreakdown[entry.domain] = (domainBreakdown[entry.domain] || 0) + entry.timeSpent;
     });
 
+    const categoryColors = {
+      'learning': 'var(--success)',
+      'productive': 'var(--accent-primary)',
+      'entertainment': 'var(--danger)',
+      'social media': 'var(--warning)',
+      'shopping': '#8b5cf6',
+      'news/info': 'var(--accent-secondary)',
+      'misc': 'var(--text-muted)'
+    };
+    const totalCatTime = Object.values(categoryTime).reduce((a, b) => a + b, 0);
+
     let html = `<h3>Today's Activity</h3>`;
-    
-    // Category breakdown
+
+    // Category breakdown with visual bars
     html += `<div class="category-breakdown">`;
     Object.entries(categoryTime)
       .sort((a, b) => b[1] - a[1])
       .forEach(([category, seconds]) => {
         const minutes = Math.round(seconds / 60);
         if (minutes > 0) {
+          const pct = Math.round((seconds / totalCatTime) * 100);
+          const color = categoryColors[category] || 'var(--text-muted)';
           html += `
-            <div class="activity-item">
-              <span class="activity-domain">${category}</span>
-              <span class="activity-time">${Utils.formatTime(seconds)}</span>
+            <div class="category-bar-row">
+              <div class="category-bar-header">
+                <span class="activity-domain">${category}</span>
+                <span class="activity-time">${Utils.formatTime(seconds)}</span>
+              </div>
+              <div class="category-bar-track">
+                <div class="category-bar-fill" style="width:${pct}%;background:${color}"></div>
+              </div>
             </div>
           `;
         }
@@ -311,35 +336,45 @@ class DigitalDiary {
 
     let html = `
       <div class="report-summary">
-        <h4>📊 ${period.charAt(0).toUpperCase() + period.slice(1)} Summary</h4>
+        <h4>${period.charAt(0).toUpperCase() + period.slice(1)} Summary</h4>
         <p><strong>Total Time Tracked:</strong> ${Utils.formatTime(totalTime)}</p>
         <p><strong>Days Active:</strong> ${Object.keys(dailyActivity).length}</p>
         <p><strong>Average Daily Time:</strong> ${Utils.formatTime(totalTime / Math.max(1, Object.keys(dailyActivity).length))}</p>
       </div>
     `;
 
-    // Category breakdown
-    html += `<h4 style="margin-top: 20px;">📈 Time by Category</h4>`;
-    html += `<ul class="activity-list">`;
+    // Category breakdown with visual bars
+    const reportCategoryColors = {
+      'learning': 'var(--success)',
+      'productive': 'var(--accent-primary)',
+      'entertainment': 'var(--danger)',
+      'social media': 'var(--warning)',
+      'shopping': '#8b5cf6',
+      'news/info': 'var(--accent-secondary)',
+      'misc': 'var(--text-muted)'
+    };
+    html += `<h4 style="margin-top: 20px;">Time by Category</h4>`;
     Object.entries(categoryTime)
       .sort((a, b) => b[1] - a[1])
       .forEach(([category, seconds]) => {
-        const percentage = ((seconds / totalTime) * 100).toFixed(1);
+        const pct = Math.round((seconds / totalTime) * 100);
+        const color = reportCategoryColors[category] || 'var(--text-muted)';
         html += `
-          <li class="activity-item">
-            <div>
+          <div class="category-bar-row">
+            <div class="category-bar-header">
               <span class="activity-domain">${category}</span>
-              <span class="category-tag category-${category.replace(' ', '-')}">${percentage}%</span>
+              <span class="activity-time">${Utils.formatTime(seconds)} &middot; ${pct}%</span>
             </div>
-            <span class="activity-time">${Utils.formatTime(seconds)}</span>
-          </li>
+            <div class="category-bar-track">
+              <div class="category-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+          </div>
         `;
       });
-    html += `</ul>`;
 
     // Daily breakdown
     if (Object.keys(dailyActivity).length > 1) {
-      html += `<h4 style="margin-top: 20px;">📅 Daily Activity</h4>`;
+      html += `<h4 style="margin-top: 20px;">Daily Activity</h4>`;
       html += `<ul class="activity-list">`;
       Object.entries(dailyActivity)
         .sort((a, b) => new Date(b[0]) - new Date(a[0]))
@@ -360,7 +395,12 @@ class DigitalDiary {
   }
 
   renderGoals() {
-    // Update current goal display
+    // Clear any existing countdown
+    if (this.goalCountdownInterval) {
+      clearInterval(this.goalCountdownInterval);
+      this.goalCountdownInterval = null;
+    }
+
     const goalDisplay = document.getElementById('currentGoal');
     if (this.currentGoal && this.currentGoal.active) {
       const elapsed = Math.floor((Date.now() - this.currentGoal.startTime) / 1000);
@@ -369,12 +409,12 @@ class DigitalDiary {
 
       goalDisplay.innerHTML = `
         <div class="active-goal">
-          <h5>🎯 ${this.currentGoal.type} Session</h5>
+          <h5>${this.currentGoal.type} Session</h5>
           <div class="goal-progress">
             <div class="progress-bar">
-              <div class="progress-fill" style="width: ${progress}%"></div>
+              <div class="progress-fill" id="goalProgressFill" style="width: ${progress}%"></div>
             </div>
-            <p>${Utils.formatTime(remaining)} remaining</p>
+            <p id="goalRemaining">${Utils.formatTime(remaining)} remaining</p>
           </div>
           <button id="stopGoalBtn" class="action-btn danger">Stop Session</button>
         </div>
@@ -383,6 +423,24 @@ class DigitalDiary {
       document.getElementById('stopGoalBtn').addEventListener('click', () => {
         this.stopGoal();
       });
+
+      // Live 1-second countdown
+      this.goalCountdownInterval = setInterval(() => {
+        const el = Math.floor((Date.now() - this.currentGoal.startTime) / 1000);
+        const rem = Math.max(0, this.currentGoal.duration - el);
+        const prog = Math.min(100, (el / this.currentGoal.duration) * 100);
+
+        const remEl = document.getElementById('goalRemaining');
+        const progEl = document.getElementById('goalProgressFill');
+        if (remEl) remEl.textContent = `${Utils.formatTime(rem)} remaining`;
+        if (progEl) progEl.style.width = `${prog}%`;
+
+        if (rem === 0) {
+          clearInterval(this.goalCountdownInterval);
+          this.goalCountdownInterval = null;
+          this.completeGoal();
+        }
+      }, 1000);
     } else {
       goalDisplay.innerHTML = `<p>No active goal. Set one below!</p>`;
     }
@@ -414,44 +472,60 @@ class DigitalDiary {
 
   renderStreakChart() {
     const chartDiv = document.getElementById('streakChart');
-    
-    // Simple streak visualization
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
     const days = [];
     for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      days.push(date.toDateString());
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d);
     }
 
-    let html = '<div style="display: flex; justify-content: space-between; align-items: end; height: 60px;">';
-    
-    days.forEach((day, index) => {
-      const dayActivities = this.activityLog.filter(entry => 
-        new Date(entry.when).toDateString() === day
+    let html = '<div class="heatmap-grid">';
+
+    days.forEach((date, idx) => {
+      const dateStr = date.toDateString();
+      const dayActivities = this.activityLog.filter(entry =>
+        new Date(entry.when).toDateString() === dateStr
       );
-      
+
       const productiveTime = dayActivities
         .filter(entry => ['learning', 'productive'].includes(Utils.getCategoryForDomain(entry.domain)))
         .reduce((sum, entry) => sum + entry.timeSpent, 0);
-      
-      const isProductiveDay = productiveTime >= 1800; // 30 minutes
-      const height = Math.max(10, Math.min(50, (productiveTime / 3600) * 40)); // Max 50px for 1+ hours
-      
+
+      const minutes = productiveTime / 60;
+      let level = 0;
+      if (minutes >= 120) level = 4;
+      else if (minutes >= 60) level = 3;
+      else if (minutes >= 30) level = 2;
+      else if (minutes > 0) level = 1;
+
+      const isToday = idx === 6;
+      const label = dayNames[date.getDay()];
+      const title = `${date.toLocaleDateString()}: ${Utils.formatTime(productiveTime)} productive`;
+
       html += `
-        <div style="
-          width: 12px; 
-          height: ${height}px; 
-          background: ${isProductiveDay ? 'var(--success)' : 'var(--bg-tertiary)'}; 
-          border-radius: 2px;
-          margin: 0 2px;
-        " title="${new Date(day).toLocaleDateString()}: ${Utils.formatTime(productiveTime)}"></div>
+        <div class="heatmap-col">
+          <div class="heatmap-day level-${level}${isToday ? ' today' : ''}" title="${title}"></div>
+          <span class="heatmap-label">${label}</span>
+        </div>
       `;
     });
-    
+
     html += '</div>';
-    html += '<div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.7rem; color: var(--text-muted);">';
-    html += '<span>7d ago</span><span>Today</span>';
-    html += '</div>';
+    html += `
+      <div class="heatmap-legend">
+        <span>Less</span>
+        <div class="heatmap-legend-squares">
+          <div class="heatmap-day level-0"></div>
+          <div class="heatmap-day level-1"></div>
+          <div class="heatmap-day level-2"></div>
+          <div class="heatmap-day level-3"></div>
+          <div class="heatmap-day level-4"></div>
+        </div>
+        <span>More</span>
+      </div>
+    `;
 
     chartDiv.innerHTML = html;
   }
@@ -518,6 +592,10 @@ class DigitalDiary {
   }
 
   stopGoal() {
+    if (this.goalCountdownInterval) {
+      clearInterval(this.goalCountdownInterval);
+      this.goalCountdownInterval = null;
+    }
     if (this.currentGoal) {
       this.currentGoal.active = false;
       Utils.setStorageData({ currentGoal: this.currentGoal });
@@ -526,12 +604,14 @@ class DigitalDiary {
   }
 
   completeGoal() {
+    if (this.goalCountdownInterval) {
+      clearInterval(this.goalCountdownInterval);
+      this.goalCountdownInterval = null;
+    }
     if (this.currentGoal && this.currentGoal.active) {
       this.currentGoal.active = false;
       this.currentGoal.completed = true;
       Utils.setStorageData({ currentGoal: this.currentGoal });
-      
-      // Show completion notification
       alert(`🎉 Goal completed! You finished your ${this.currentGoal.type} session.`);
       this.renderGoals();
     }
