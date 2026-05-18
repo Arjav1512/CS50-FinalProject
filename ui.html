@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Digital Diary</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>📱 Digital Diary</h1>
+            <h1>Digital Diary</h1>
             <div class="theme-toggle">
                 <button id="themeToggle" class="theme-btn" aria-label="Toggle theme">🌙</button>
             </div>
@@ -18,10 +21,33 @@
 
         <!-- Navigation -->
         <nav class="nav-tabs">
-            <button class="nav-tab active" data-tab="home" aria-label="Home">🏠</button>
-            <button class="nav-tab" data-tab="reports" aria-label="Reports">📊</button>
-            <button class="nav-tab" data-tab="goals" aria-label="Goals & Streaks">🎯</button>
-            <button class="nav-tab" data-tab="settings" aria-label="Settings">⚙️</button>
+            <button class="nav-tab active" data-tab="home" aria-label="Home">
+                <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+                <span class="nav-label">Home</span>
+            </button>
+            <button class="nav-tab" data-tab="reports" aria-label="Reports">
+                <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
+                </svg>
+                <span class="nav-label">Reports</span>
+            </button>
+            <button class="nav-tab" data-tab="goals" aria-label="Goals & Streaks">
+                <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+                </svg>
+                <span class="nav-label">Goals</span>
+            </button>
+            <button class="nav-tab" data-tab="settings" aria-label="Settings">
+                <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span class="nav-label">Settings</span>
+            </button>
         </nav>
 
         <!-- Tab Content -->
@@ -29,9 +55,15 @@
             <!-- Home Tab -->
             <div id="home" class="tab-pane active">
                 <div class="productivity-score">
-                    <div class="score-circle">
-                        <span id="productivityScore">0</span>
-                        <small>Productivity Score</small>
+                    <div class="score-ring-container">
+                        <svg class="score-ring" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+                            <circle class="score-ring-track" cx="60" cy="60" r="52"/>
+                            <circle class="score-ring-fill" cx="60" cy="60" r="52" id="scoreRingFill"/>
+                        </svg>
+                        <div class="score-ring-text">
+                            <span id="productivityScore">0</span>
+                            <small>Score</small>
+                        </div>
                     </div>
                 </div>
 
@@ -61,7 +93,7 @@
 
             <!-- Reports Tab -->
             <div id="reports" class="tab-pane">
-                <h3>📊 Activity Reports</h3>
+                <h3>Activity Reports</h3>
                 
                 <div class="date-range-selector">
                     <label for="dateRange">Report Period:</label>
@@ -90,7 +122,7 @@
 
             <!-- Goals & Streaks Tab -->
             <div id="goals" class="tab-pane">
-                <h3>🎯 Goals & Achievements</h3>
+                <h3>Goals & Achievements</h3>
                 
                 <div class="goal-section">
                     <h4>Current Goal</h4>
@@ -110,14 +142,14 @@
                 </div>
 
                 <div class="achievements">
-                    <h4>🏆 Achievements</h4>
+                    <h4>Achievements</h4>
                     <div id="achievementsList" class="achievements-grid">
                         <!-- Achievements will be populated here -->
                     </div>
                 </div>
 
                 <div class="streak-history">
-                    <h4>📈 Streak History</h4>
+                    <h4>Streak History</h4>
                     <div id="streakChart" class="streak-chart">
                         <!-- Streak visualization will be here -->
                     </div>
@@ -126,10 +158,10 @@
 
             <!-- Settings Tab -->
             <div id="settings" class="tab-pane">
-                <h3>⚙️ Settings</h3>
-                
+                <h3>Settings</h3>
+
                 <div class="settings-section">
-                    <h4>🔗 Notion Integration</h4>
+                    <h4>Notion Integration</h4>
                     <div class="notion-setup">
                         <input type="password" id="notionApiKey" placeholder="Notion API Key" class="settings-input">
                         <input type="text" id="notionDatabaseId" placeholder="Database ID" class="settings-input">
@@ -140,7 +172,7 @@
                 </div>
 
                 <div class="settings-section">
-                    <h4>🎨 Appearance</h4>
+                    <h4>Appearance</h4>
                     <div class="theme-settings">
                         <label class="setting-item">
                             <input type="radio" name="theme" value="light"> Light Mode
@@ -155,7 +187,7 @@
                 </div>
 
                 <div class="settings-section">
-                    <h4>📊 Data Management</h4>
+                    <h4>Data Management</h4>
                     <div class="data-actions">
                         <button id="exportDataBtn" class="action-btn secondary">📤 Export All Data</button>
                         <button id="clearDataBtn" class="action-btn danger">🗑️ Clear All Data</button>
@@ -163,7 +195,7 @@
                 </div>
 
                 <div class="settings-section">
-                    <h4>ℹ️ About</h4>
+                    <h4>About</h4>
                     <p class="about-text">Digital Digital Diary v1.0<br>
                     Built for CS50x 2025 Final Project<br>
                     <a href="#" id="openOptionsBtn">Open Full Settings</a></p>
