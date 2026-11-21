@@ -1,3 +1,5 @@
+import { Utils } from './utils.js';
+
 // Options page script for Digital Diary extension
 
 class OptionsPage {

@@ -1,3 +1,5 @@
+import { getCategoryForDomain, formatTime } from './lib/core.js';
+
 let sessions = {};
 let currentActiveTab = null;
 let settings = {};
@@ -128,87 +130,6 @@ function endSession(tabId) {
   }
 
   delete sessions[tabId];
-}
-
-// Enhanced category mapping function
-function getCategoryForDomain(domain) {
-  const categoryMap = {
-    // Learning & Education
-    "wikipedia.org": "learning",
-    "medium.com": "learning", 
-    "github.com": "productive",
-    "stackoverflow.com": "learning",
-    "coursera.org": "learning",
-    "edx.org": "learning",
-    "khanacademy.org": "learning",
-    "udemy.com": "learning",
-    "pluralsight.com": "learning",
-    "codecademy.com": "learning",
-    "freecodecamp.org": "learning",
-    "bennett.edu.in": "learning",
-    "scholar.google.com": "learning",
-    "arxiv.org": "learning",
-    "researchgate.net": "learning",
-
-    // Productive Tools
-    "chat.openai.com": "productive",
-    "chatgpt.com": "productive", 
-    "claude.ai": "productive",
-    "notion.so": "productive",
-    "trello.com": "productive",
-    "asana.com": "productive",
-    "slack.com": "productive",
-    "discord.com": "productive",
-    "zoom.us": "productive",
-    "meet.google.com": "productive",
-    "docs.google.com": "productive",
-    "drive.google.com": "productive",
-    "dropbox.com": "productive",
-    "figma.com": "productive",
-    "canva.com": "productive",
-
-    // Entertainment
-    "youtube.com": "entertainment",
-    "netflix.com": "entertainment",
-    "twitch.tv": "entertainment",
-    "spotify.com": "entertainment",
-    "soundcloud.com": "entertainment",
-    "reddit.com": "entertainment",
-    "9gag.com": "entertainment",
-    "imgur.com": "entertainment",
-    "tiktok.com": "entertainment",
-    "instagram.com": "entertainment",
-
-    // Social Media
-    "twitter.com": "social media",
-    "x.com": "social media",
-    "facebook.com": "social media",
-    "linkedin.com": "social media",
-    "snapchat.com": "social media",
-    "whatsapp.com": "social media",
-    "telegram.org": "social media",
-
-    // Shopping
-    "amazon.com": "shopping",
-    "flipkart.com": "shopping",
-    "ebay.com": "shopping",
-    "etsy.com": "shopping",
-    "shopify.com": "shopping",
-    "myntra.com": "shopping",
-    "ajio.com": "shopping",
-
-    // News & Information
-    "news.google.com": "learning",
-    "bbc.com": "learning",
-    "cnn.com": "learning", 
-    "reuters.com": "learning",
-    "techcrunch.com": "learning",
-    "theverge.com": "learning",
-    "ycombinator.com": "learning",
-    "hackernews.com": "learning"
-  };
-
-  return categoryMap[domain] || "misc";
 }
 
 // GEMINI API - Summarize webpage content
@@ -431,15 +352,6 @@ function generateDailySummary(activities, summaries) {
   }
 
   return summary;
-}
-
-function formatTime(seconds) {
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
 // Check for auto-export daily

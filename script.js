@@ -1,3 +1,5 @@
+import { Utils } from './utils.js';
+
 // Main popup script for Digital Diary extension
 
 class DigitalDiary {
