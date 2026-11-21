@@ -136,20 +136,19 @@ async function main() {
       throw e;
     }
 
-    // 2. Popup and options pages load with zero console errors and zero external requests.
+    // An extension page used to call chrome.* APIs from the test.
     const popupSink = { errors: [], requests: [] };
     const popup = await openExtensionPage(browser, `chrome-extension://${extensionId}/ui.html`, popupSink, { width: 450, height: 600 });
-    const optionsSink = { errors: [], requests: [] };
-    const options = await openExtensionPage(browser, `chrome-extension://${extensionId}/options.html`, optionsSink);
-    for (const [label, sink] of [['popup', popupSink], ['options page', optionsSink]]) {
-      record(`${label}: zero console errors`, sink.errors.length === 0, sink.errors.slice(0, 3).join(' | '));
-      const ext = sink.requests.filter(u => !isExtUrl(u, extensionId));
-      record(`${label}: zero network requests`, ext.length === 0, ext.slice(0, 3).join(' | '));
-    }
-    await options.close();
 
+    // Tracking checks run first: chrome.idle needs recent user input (see IDLE_REASON).
     // 3. Visiting normal pages with default settings: zero requests from the extension,
     //    and the page only talks to its own server.
+    // Record every OS idle transition during the run (diagnostics + honest SKIP).
+    await popup.evaluate(() => {
+      window.__idleEvents = [];
+      chrome.idle.onStateChanged.addListener(state => window.__idleEvents.push([Date.now(), state]));
+    });
+    const idleEventsBetween = (from, to) => popup.evaluate((a, b) => window.__idleEvents.filter(([t]) => t >= a && t <= b), from, to);
     const idleAtStart = await idleState(popup);
     console.log(`info  OS idle state at start of tracking checks: ${idleAtStart}`);
     const swBefore = sw.requests.length;
@@ -159,7 +158,7 @@ async function main() {
     const tA0 = Date.now();
     await pageA.goto(site('www.youtube.test'), { waitUntil: 'load' });
     await activateTab(popup, site('www.youtube.test'));
-    await sleep(7000);
+    await sleep(6000);
     const pageB = await browser.newPage();
     await pageB.goto(site('en.wikipedia.test'), { waitUntil: 'load' });
     await activateTab(popup, site('en.wikipedia.test'));
@@ -174,8 +173,9 @@ async function main() {
     const log1 = (await popup.evaluate(() => chrome.storage.local.get('activityLog'))).activityLog || [];
     const entryA = log1.find(e => e.domain === 'youtube.test' || e.domain === 'www.youtube.test');
     const idleA = await idleState(popup);
-    if (idleAtStart !== 'active' || idleA !== 'active') {
-      skip('tracking: first visit logged', `${IDLE_REASON} (idle state: ${idleAtStart} → ${idleA})`);
+    const idleDuringA = await idleEventsBetween(tA0 - 1000, Date.now());
+    if (idleAtStart !== 'active' || idleA !== 'active' || idleDuringA.length) {
+      skip('tracking: first visit logged', `${IDLE_REASON} (idle state: ${idleAtStart} → ${idleA}; transitions: ${JSON.stringify(idleDuringA.map(e => e[1]))})`);
     } else {
       record('tracking: first visit logged', !!entryA && Math.abs(entryA.timeSpent - elapsedA) <= 5,
         entryA ? `logged ${entryA.timeSpent}s, real ≈${elapsedA.toFixed(1)}s, domain ${entryA.domain}` : `log: ${JSON.stringify(log1).slice(0, 200)}`);
@@ -192,7 +192,7 @@ async function main() {
     await stopServiceWorker(browser, extensionId);
     const oldGone = await oldWorker.evaluate(() => 1).then(() => false, () => true);
     record('service worker was actually stopped', oldGone, 'old worker execution context is gone');
-    await sleep(8000);
+    await sleep(5000);
     // Activating another tab fires tabs.onActivated, which wakes the stopped worker.
     const pageD = await browser.newPage();
     await pageD.goto(site('wake.test'), { waitUntil: 'load' });
@@ -219,10 +219,21 @@ async function main() {
       await s2.send('Network.enable').catch(() => {});
     }
     const idleAfterC = await idleState(popup);
-    if (idleBeforeC !== 'active' || idleAfterC !== 'active') {
-      skip('worker stopped mid-session: visit still logged within ±5s', `${IDLE_REASON} (idle state: ${idleBeforeC} → ${idleAfterC})`);
+    const idleDuringC = await idleEventsBetween(tC0 - 1000, Date.now());
+    if (idleBeforeC !== 'active' || idleAfterC !== 'active' || idleDuringC.length) {
+      skip('worker stopped mid-session: visit still logged within ±5s', `${IDLE_REASON} (idle state: ${idleBeforeC} → ${idleAfterC}; transitions during check: ${JSON.stringify(idleDuringC.map(([t, st]) => `${((t - tC0) / 1000).toFixed(1)}s:${st}`))})`);
     } else record('worker stopped mid-session: visit still logged within ±5s', !!entryC && Math.abs(entryC.timeSpent - elapsedC) <= 5,
       entryC ? `logged ${entryC.timeSpent}s, real ≈${elapsedC.toFixed(1)}s (worker wake-up took ≈${wakeLatency.toFixed(1)}s)` : `no entry for docs.google.test; storage: ${JSON.stringify(lastSeenLog).slice(0, 400)}`);
+
+    // 6a. Popup and options pages load with zero console errors and zero external requests.
+    const optionsSink = { errors: [], requests: [] };
+    const options = await openExtensionPage(browser, `chrome-extension://${extensionId}/options.html`, optionsSink);
+    for (const [label, sink] of [['popup', popupSink], ['options page', optionsSink]]) {
+      record(`${label}: zero console errors`, sink.errors.length === 0, sink.errors.slice(0, 3).join(' | '));
+      const ext = sink.requests.filter(u => !isExtUrl(u, extensionId));
+      record(`${label}: zero network requests`, ext.length === 0, ext.slice(0, 3).join(' | '));
+    }
+    await options.close();
 
     // 6. Service worker errors (CDP) and Chrome log lines mentioning the extension.
     const logErrors = stderrLines.filter(l => l.includes(extensionId) && /Uncaught|Error/i.test(l));

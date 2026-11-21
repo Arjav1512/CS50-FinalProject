@@ -35,7 +35,8 @@ class OptionsPage {
   }
 
   async loadStatistics() {
-    const data = await Utils.getStorageData(['activityLog', 'summaries']);
+    const data = await Utils.getStorageData(['activityLog', 'summaries', 'categoryOverrides', 'streakGoal']);
+    Utils.setContext({ overrides: data.categoryOverrides || {}, goalMinutes: data.streakGoal || 30 });
     const activityLog = data.activityLog || [];
     const summaries = data.summaries || [];
 

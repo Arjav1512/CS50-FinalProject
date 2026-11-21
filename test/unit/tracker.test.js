@@ -44,12 +44,12 @@ test('worker restart mid-session: logged duration within ±5 s of real time', as
   advance(70);
   await chrome._fireAlarm(ALARM_FLUSH);    // the minute alarm wakes the new worker
   let log = await getLog(chrome);
-  assert.ok(Math.abs(secondsFor(log, 'www.youtube.com') - 120) <= 5, `flushed ${secondsFor(log, 'www.youtube.com')}s`);
+  assert.ok(Math.abs(secondsFor(log, 'youtube.com') - 120) <= 5, `flushed ${secondsFor(log, 'youtube.com')}s`);
 
   advance(10);
   await chrome._activate(2);
   log = await getLog(chrome);
-  const yt = log.filter(e => e.domain === 'www.youtube.com');
+  const yt = log.filter(e => e.domain === 'youtube.com');
   assert.equal(yt.length, 1, 'one entry, updated in place');
   assert.ok(Math.abs(yt[0].timeSpent - 130) <= 5, `final ${yt[0].timeSpent}s, real 130s`);
 });
@@ -63,7 +63,7 @@ test('worker restart without any alarm: next tab switch still logs the full visi
   advance(45);
   await bootWorker(chrome);
   await chrome._activate(2);
-  assert.equal(secondsFor(await getLog(chrome), 'www.youtube.com'), 85);
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 85);
 });
 
 test('window focus loss and regain: away time is not counted, tracking resumes', async () => {
@@ -79,7 +79,7 @@ test('window focus loss and regain: away time is not counted, tracking resumes',
   assert.equal(resumed?.tabId, 1, 'tracking resumes on the active tab');
   advance(20);
   await chrome._activate(2);
-  assert.equal(secondsFor(await getLog(chrome), 'www.youtube.com'), 50, '30 s + 20 s, not 110 s');
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 50, '30 s + 20 s, not 110 s');
 });
 
 test('idle then active: idle time (including the 60 s detection window) is not counted', async () => {
@@ -89,14 +89,14 @@ test('idle then active: idle time (including the 60 s detection window) is not c
   await chrome._activate(1);
   advance(100);                          // user stopped touching the computer at t=40 s
   await chrome._setIdle('idle');         // Chrome reports idle 60 s later
-  assert.equal(secondsFor(await getLog(chrome), 'www.youtube.com'), 40);
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 40);
   assert.equal(await getSession(chrome), undefined);
   advance(300);
   await chrome._setIdle('active');
   assert.equal((await getSession(chrome))?.tabId, 1, 'new session on return');
   advance(30);
   await chrome._fireAlarm(ALARM_FLUSH);
-  assert.equal(secondsFor(await getLog(chrome), 'www.youtube.com'), 70, '40 s + 30 s, not 430 s');
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 70, '40 s + 30 s, not 430 s');
 });
 
 test('screen locked ends the session immediately', async () => {
@@ -107,7 +107,7 @@ test('screen locked ends the session immediately', async () => {
   await chrome._setIdle('locked');
   advance(600);
   await chrome._fireAlarm(ALARM_FLUSH);
-  assert.equal(secondsFor(await getLog(chrome), 'www.youtube.com'), 25);
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 25);
 });
 
 test('two sessions ending at the same moment are both saved', async () => {
@@ -139,7 +139,7 @@ test('simultaneous events for the same session produce exactly one correct entry
     chrome._fireAlarm(ALARM_FLUSH)
   ]);
   const log = await getLog(chrome);
-  assert.equal(secondsFor(log, 'www.youtube.com'), 15);
+  assert.equal(secondsFor(log, 'youtube.com'), 15);
   const wiki = log.filter(e => e.domain === 'en.wikipedia.org');
   assert.equal(wiki.length, 1);
   assert.equal(wiki[0].timeSpent, 12);
@@ -157,7 +157,7 @@ test('minute flush saves progress so a crash loses at most about a minute', asyn
   await chrome._fireAlarm(ALARM_FLUSH);
   // Browser crashes now: storage.session is wiped, nothing else runs.
   await chrome.storage.session.clear();
-  assert.equal(secondsFor(await getLog(chrome), 'www.youtube.com'), 122);
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 122);
 });
 
 test('navigating the tracked tab to an excluded site ends the previous page first', async () => {
@@ -171,7 +171,7 @@ test('navigating the tracked tab to an excluded site ends the previous page firs
   advance(30);
   await chrome._fireAlarm(ALARM_FLUSH);
   const log = await getLog(chrome);
-  assert.equal(secondsFor(log, 'www.youtube.com'), 20);
+  assert.equal(secondsFor(log, 'youtube.com'), 20);
   assert.equal(log.some(e => e.domain.includes('wikipedia')), false);
 });
 
@@ -188,7 +188,7 @@ test('navigation in the active tab starts tracking even if it was never activate
   chrome._tabs.get(1).active = true;
   await bootWorker(chrome);
   await chrome._navigate(1, 'https://www.reddit.com/r/all');
-  assert.equal((await getSession(chrome))?.domain, 'www.reddit.com');
+  assert.equal((await getSession(chrome))?.domain, 'reddit.com');
 });
 
 test('a long gap between flushes (computer asleep) is not counted', async () => {
@@ -199,7 +199,7 @@ test('a long gap between flushes (computer asleep) is not counted', async () => 
   await chrome._fireAlarm(ALARM_FLUSH);
   advance(3600);                         // laptop lid closed for an hour
   await chrome._fireAlarm(ALARM_FLUSH);
-  const total = secondsFor(await getLog(chrome), 'www.youtube.com');
+  const total = secondsFor(await getLog(chrome), 'youtube.com');
   assert.ok(total <= 125, `counted ${total}s`);
 });
 
@@ -227,6 +227,7 @@ test('daily retention alarm removes old entries but keeps recent and unreadable 
   const chrome = setupBrowser();
   const day = 86400000;
   await chrome.storage.local.set({
+    schemaVersion: 2,
     dataRetention: 30,
     activityLog: [
       { id: 'old', domain: 'a.com', when: T0 - 40 * day, timeSpent: 10 },

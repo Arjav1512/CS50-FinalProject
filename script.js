@@ -31,8 +31,11 @@ class DigitalDiary {
         'streakData', 
         'achievements', 
         'currentGoal',
-        'theme'
+        'theme',
+        'categoryOverrides',
+        'streakGoal'
       ]);
+      Utils.setContext({ overrides: data.categoryOverrides || {}, goalMinutes: data.streakGoal || 30 });
       
       this.activityLog = data.activityLog || [];
       this.summaries = data.summaries || [];

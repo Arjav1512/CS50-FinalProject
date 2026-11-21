@@ -2,12 +2,16 @@
 
 import * as core from './lib/core.js';
 
+// Category overrides and streak goal used by the wrappers below.
+let ctx = { overrides: {}, goalMinutes: 30 };
+
 export class Utils {
+  static setContext(c) { ctx = { ...ctx, ...c }; }
   static formatTime(seconds) { return core.formatTime(seconds); }
-  static calculateProductivityScore(log) { return core.calculateProductivityScore(log); }
-  static getCategoryForDomain(domain) { return core.getCategoryForDomain(domain); }
-  static calculateStreak(log) { return core.calculateStreak(log); }
-  static generateAchievements(log, streak) { return core.generateAchievements(log, streak); }
+  static calculateProductivityScore(log) { return core.calculateProductivityScore(log, ctx.overrides); }
+  static getCategoryForDomain(domain) { return core.getCategory(domain, ctx.overrides); }
+  static calculateStreak(log) { return core.calculateStreak(log, { goalMinutes: ctx.goalMinutes, overrides: ctx.overrides }); }
+  static generateAchievements(log, streak) { return core.generateAchievements(log, streak, ctx.overrides); }
 
   // Theme management
   static setTheme(theme) {
