@@ -22,6 +22,18 @@ function record(name, pass, detail = '') {
   results.push({ name, pass, detail });
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`);
 }
+const skipped = [];
+function skip(name, reason) {
+  skipped.push({ name, reason });
+  console.log(`SKIP  ${name}  — ${reason}`);
+}
+
+// chrome.idle reports the operating system's input idleness. On an unattended
+// machine (no keyboard/mouse input for 60 s) Chrome correctly reports "idle" and
+// the extension correctly stops counting time, so tracking checks cannot run.
+// They are reported as SKIP (never as PASS) in that case.
+const IDLE_REASON = 'the OS reports no user input for 60 s (chrome.idle = idle), so the extension correctly does not track; rerun while using the computer';
+const idleState = page => page.evaluate(() => chrome.idle.queryState(60));
 
 // ---------- local web server for "normal pages" ----------
 function startServer() {
@@ -75,6 +87,20 @@ async function openExtensionPage(browser, url, sink, viewport) {
   return page;
 }
 
+// Activates the tab showing `url` through the real chrome.tabs API (called from
+// an extension page). This fires a genuine tabs.onActivated event, like a user
+// clicking the tab. Headless Chrome's bringToFront() does not reliably do that.
+async function activateTab(extPage, url) {
+  return extPage.evaluate(async u => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find(t => t.url === u || t.pendingUrl === u);
+    if (!tab) throw new Error(`no tab for ${u}`);
+    await chrome.tabs.update(tab.id, { active: true });
+    await chrome.windows.update(tab.windowId, { focused: true });
+    return tab.id;
+  }, url);
+}
+
 async function main() {
   const server = await startServer();
   const port = server.address().port;
@@ -124,17 +150,19 @@ async function main() {
 
     // 3. Visiting normal pages with default settings: zero requests from the extension,
     //    and the page only talks to its own server.
+    const idleAtStart = await idleState(popup);
+    console.log(`info  OS idle state at start of tracking checks: ${idleAtStart}`);
     const swBefore = sw.requests.length;
     const pageA = await browser.newPage();
     const pageRequests = [];
     pageA.on('request', r => pageRequests.push(r.url()));
     const tA0 = Date.now();
     await pageA.goto(site('www.youtube.test'), { waitUntil: 'load' });
-    await pageA.bringToFront();
+    await activateTab(popup, site('www.youtube.test'));
     await sleep(7000);
     const pageB = await browser.newPage();
     await pageB.goto(site('en.wikipedia.test'), { waitUntil: 'load' });
-    await pageB.bringToFront();
+    await activateTab(popup, site('en.wikipedia.test'));
     const elapsedA = (Date.now() - tA0) / 1000;
     await sleep(1500);
     const extReqs = sw.requests.slice(swBefore).filter(u => !isExtUrl(u, extensionId));
@@ -145,13 +173,19 @@ async function main() {
     // 4. Tracking: the visit to page A was logged with about the right duration.
     const log1 = (await popup.evaluate(() => chrome.storage.local.get('activityLog'))).activityLog || [];
     const entryA = log1.find(e => e.domain === 'youtube.test' || e.domain === 'www.youtube.test');
-    record('tracking: first visit logged', !!entryA && Math.abs(entryA.timeSpent - elapsedA) <= 5,
-      entryA ? `logged ${entryA.timeSpent}s, real ≈${elapsedA.toFixed(1)}s, domain ${entryA.domain}` : `log: ${JSON.stringify(log1).slice(0, 200)}`);
+    const idleA = await idleState(popup);
+    if (idleAtStart !== 'active' || idleA !== 'active') {
+      skip('tracking: first visit logged', `${IDLE_REASON} (idle state: ${idleAtStart} → ${idleA})`);
+    } else {
+      record('tracking: first visit logged', !!entryA && Math.abs(entryA.timeSpent - elapsedA) <= 5,
+        entryA ? `logged ${entryA.timeSpent}s, real ≈${elapsedA.toFixed(1)}s, domain ${entryA.domain}` : `log: ${JSON.stringify(log1).slice(0, 200)}`);
+    }
 
     // 5. Service worker termination mid-session: the session survives.
+    const idleBeforeC = await idleState(popup);
     const pageC = await browser.newPage();
     await pageC.goto(site('docs.google.test'), { waitUntil: 'load' });
-    await pageC.bringToFront();
+    await activateTab(popup, site('docs.google.test'));
     const tC0 = Date.now();
     await sleep(3000);
     const oldWorker = worker;
@@ -159,11 +193,21 @@ async function main() {
     const oldGone = await oldWorker.evaluate(() => 1).then(() => false, () => true);
     record('service worker was actually stopped', oldGone, 'old worker execution context is gone');
     await sleep(8000);
-    // Opening a new tab fires tabs.onActivated, which wakes the stopped worker.
+    // Activating another tab fires tabs.onActivated, which wakes the stopped worker.
     const pageD = await browser.newPage();
     await pageD.goto(site('wake.test'), { waitUntil: 'load' });
-    const elapsedC = (Date.now() - tC0) / 1000;
-    await sleep(1500);
+    await activateTab(popup, site('wake.test'));
+    const elapsedC = (Date.now() - tC0) / 1000;   // real time spent on the docs page
+    // Wait for the restarted worker to process the activation.
+    let entryC = null;
+    const tWake = Date.now();
+    for (let i = 0; i < 60 && !entryC; i++) {
+      const log = (await popup.evaluate(() => chrome.storage.local.get('activityLog'))).activityLog || [];
+      entryC = log.find(e => e.domain === 'docs.google.test');
+      if (!entryC) await sleep(250);
+    }
+    const wakeLatency = (Date.now() - tWake) / 1000;
+    const lastSeenLog = (await popup.evaluate(() => chrome.storage.local.get(null)));
     const swTarget = browser.targets().find(t => t.type() === 'service_worker' && t.url().startsWith(`chrome-extension://${extensionId}/`));
     record('service worker restarted on the next event', !!swTarget);
     if (swTarget) {
@@ -174,10 +218,11 @@ async function main() {
       await s2.send('Runtime.enable');
       await s2.send('Network.enable').catch(() => {});
     }
-    const log2 = (await popup.evaluate(() => chrome.storage.local.get('activityLog'))).activityLog || [];
-    const entryC = log2.find(e => e.domain === 'docs.google.test');
-    record('worker stopped mid-session: visit still logged within ±5s', !!entryC && Math.abs(entryC.timeSpent - elapsedC) <= 5,
-      entryC ? `logged ${entryC.timeSpent}s, real ≈${elapsedC.toFixed(1)}s` : 'no entry for docs.google.test');
+    const idleAfterC = await idleState(popup);
+    if (idleBeforeC !== 'active' || idleAfterC !== 'active') {
+      skip('worker stopped mid-session: visit still logged within ±5s', `${IDLE_REASON} (idle state: ${idleBeforeC} → ${idleAfterC})`);
+    } else record('worker stopped mid-session: visit still logged within ±5s', !!entryC && Math.abs(entryC.timeSpent - elapsedC) <= 5,
+      entryC ? `logged ${entryC.timeSpent}s, real ≈${elapsedC.toFixed(1)}s (worker wake-up took ≈${wakeLatency.toFixed(1)}s)` : `no entry for docs.google.test; storage: ${JSON.stringify(lastSeenLog).slice(0, 400)}`);
 
     // 6. Service worker errors (CDP) and Chrome log lines mentioning the extension.
     const logErrors = stderrLines.filter(l => l.includes(extensionId) && /Uncaught|Error/i.test(l));
@@ -206,7 +251,8 @@ async function main() {
   }
 
   const failed = results.filter(r => !r.pass);
-  console.log(`\n${results.length - failed.length}/${results.length} e2e checks passed`);
+  console.log(`\n${results.length - failed.length}/${results.length} e2e checks passed, ${skipped.length} skipped`);
+  for (const k of skipped) console.log(`  skipped: ${k.name}`);
   process.exit(failed.length ? 1 : 0);
 }
 
