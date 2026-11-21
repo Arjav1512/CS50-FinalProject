@@ -214,6 +214,43 @@ test('the sleep rule is the same whether the session ends by flush or by a tab s
   assert.ok(secondsFor(await getLog(chrome), 'youtube.com') <= 125);
 });
 
+test('a tab activated while Chrome is in the background is not timed (review finding)', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  await chrome._activate(3);
+  advance(30);
+  await chrome._focusWindow(chrome.windows.WINDOW_ID_NONE);   // user switches to another app
+  await chrome._activate(1);                                   // e.g. an OAuth popup closed itself
+  for (let i = 0; i < 10; i++) { advance(60); await chrome._fireAlarm(ALARM_FLUSH); }
+  const log = await getLog(chrome);
+  assert.equal(secondsFor(log, 'docs.google.com'), 30);
+  assert.equal(secondsFor(log, 'youtube.com'), 0, JSON.stringify(log));
+});
+
+test('adding the current site to Excluded Domains stops timing it immediately (review finding)', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  await chrome._activate(1);
+  advance(10);
+  await chrome.storage.local.set({ excludedDomains: ['localhost', 'youtube.com'] });
+  await settle();
+  for (let i = 0; i < 5; i++) { advance(60); await chrome._fireAlarm(ALARM_FLUSH); }
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 10);
+  assert.equal(await getSession(chrome), undefined);
+});
+
+test('the minute flush follows the active tab if a tab change event was missed', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  await chrome._activate(1);
+  advance(20);
+  chrome._tabs.get(1).active = false;     // tab switched without an event reaching us
+  chrome._tabs.get(2).active = true;
+  advance(40);
+  await chrome._fireAlarm(ALARM_FLUSH);
+  assert.equal((await getSession(chrome))?.tabId, 2);
+});
+
 test('incognito tabs and short visits are not logged', async () => {
   const chrome = setupBrowser();
   chrome._addTab({ id: 9, url: 'https://secret.example/', incognito: true });

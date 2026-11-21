@@ -7,7 +7,8 @@ import {
   CATEGORIES, CATEGORY_COLORS, getCategory, formatTime, calculateProductivityScore,
   calculateStreak, generateAchievements, getDateRange, filterByRange, dayKey,
   productiveSecondsByDay, timeByCategory, timeByDomain, buildDailySummaryText,
-  buildReportText, focusResultMessage, withDefaults, DEFAULT_SETTINGS
+  buildReportText, focusResultMessage, withDefaults, DEFAULT_SETTINGS,
+  totalSeconds, secondsByDay, dayBounds, summaryLabel, nextMilestone
 } from './lib/core.js';
 import { h, setChildren, downloadFile, todayStamp, applyTheme, sendToWorker, storageGet, storageSet, showStatus, exportDataFile } from './lib/ui.js';
 import { exportToNotion } from './lib/notion.js';
@@ -40,7 +41,7 @@ async function loadData() {
 
 const category = domain => getCategory(domain, state.overrides);
 // The whole local calendar day (visits are counted on the day they started).
-const todayRange = () => { const d = new Date(); return { start: new Date(d.getFullYear(), d.getMonth(), d.getDate()), end: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999) }; };
+const todayRange = () => dayBounds(Date.now());
 const todaysActivity = () => { const { start, end } = todayRange(); return filterByRange(state.log, start, end); };
 const todaysSummaries = () => { const { start, end } = todayRange(); return filterByRange(state.summaries, start, end, 'time'); };
 const streak = () => calculateStreak(state.log, { goalMinutes: state.settings.streakGoal, overrides: state.overrides });
@@ -67,9 +68,7 @@ function categoryBars(categoryTime, showPercent) {
 
 // Text derived from a web page (via Gemini) — inserted as text only.
 function summaryCard(item) {
-  let label = item.title || '';
-  if (!label) { try { label = new URL(item.url).hostname; } catch { label = item.url || ''; } }
-  return h('div', { class: 'summary-item' }, h('strong', {}, label), h('p', {}, item.summary));
+  return h('div', { class: 'summary-item' }, h('strong', {}, summaryLabel(item)), h('p', {}, item.summary));
 }
 
 // Lets the user change a site's category; saved as an override and used everywhere.
@@ -80,8 +79,11 @@ function categorySelect(domain) {
     'aria-label': `Category for ${domain}`,
     title: 'Change this site\'s category',
     onchange: async e => {
-      e.target.disabled = true;
-      await sendToWorker({ type: 'setCategory', domain, category: e.target.value });
+      const select = e.target;
+      select.disabled = true;
+      const result = await sendToWorker({ type: 'setCategory', domain, category: select.value }).catch(err => ({ ok: false, error: err.message }));
+      // On success storage changes and the list re-renders; on failure restore it.
+      if (!result?.ok) { select.value = current; select.disabled = false; alert(result?.error || 'Could not change the category.'); }
     }
   }, CATEGORIES.map(c => h('option', { value: c, selected: c === current }, c)));
 }
@@ -98,8 +100,10 @@ function renderHome() {
   $('scoreRingFill').style.strokeDashoffset = circumference - (score / 100) * circumference;
 
   const s = streak();
+  const milestone = nextMilestone(s.current);
   $('currentStreak').textContent = s.current;
-  $('streakProgress').style.width = `${Math.min(100, (s.current / 7) * 100)}%`;
+  $('streakProgress').style.width = `${Math.min(100, (s.current / milestone) * 100)}%`;
+  $('milestoneText').textContent = `Next milestone: ${milestone} days`;
 
   const box = $('todayReport');
   if (today.length === 0) {
@@ -197,9 +201,8 @@ function renderReports() {
     setChildren(box, h('p', {}, 'No activity data for the selected period.'));
     return;
   }
-  const total = activities.reduce((t, e) => t + e.timeSpent, 0);
-  const perDay = {};
-  activities.forEach(e => { const k = dayKey(e.when); perDay[k] = (perDay[k] || 0) + e.timeSpent; });
+  const total = totalSeconds(activities);
+  const perDay = secondsByDay(activities);
   const days = Object.keys(perDay).length;
   const nodes = [
     h('div', { class: 'report-summary' },
@@ -312,7 +315,7 @@ function renderTheme() {
 }
 
 async function clearAllData() {
-  if (!confirm('⚠️ This permanently deletes all activity, AI summaries and category changes. Your settings are kept. Continue?')) return;
+  if (!confirm('⚠️ This permanently deletes all activity, AI summaries, category changes and the focus session. Your settings and API keys are kept. Continue?')) return;
   await sendToWorker({ type: 'clearAllData' });
 }
 

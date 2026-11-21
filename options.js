@@ -1,6 +1,6 @@
 // Digital Diary options page. Every field saves automatically on change.
 
-import { DEFAULT_SETTINGS, withDefaults, formatTime, calculateStreak, toTimestamp, dayKey } from './lib/core.js';
+import { DEFAULT_SETTINGS, withDefaults, formatTime, calculateStreak, totalSeconds, secondsByDay, readableEntries } from './lib/core.js';
 import { applyTheme, debounce, storageGet, storageSet, sendToWorker, showStatus as showStatusIn, exportDataFile } from './lib/ui.js';
 import { getDatabase, databaseTitle, normalizeDatabaseId } from './lib/notion.js';
 
@@ -52,11 +52,9 @@ async function saveAll() {
 
 async function renderStatistics() {
   const data = await storageGet(['activityLog', 'categoryOverrides', 'streakGoal']);
-  const log = data.activityLog || [];
-  const total = log.reduce((sum, e) => sum + (Number(e.timeSpent) || 0), 0);
-  const days = new Set(log.map(e => toTimestamp(e.when)).filter(t => !Number.isNaN(t)).map(dayKey));
-  $('totalDays').textContent = days.size;
-  $('totalTime').textContent = formatTime(total);
+  const log = readableEntries(data.activityLog);   // same entries as reports/streaks
+  $('totalDays').textContent = Object.keys(secondsByDay(log)).length;
+  $('totalTime').textContent = formatTime(totalSeconds(log));
   $('totalSites').textContent = new Set(log.map(e => e.domain)).size;
   $('longestStreak').textContent = calculateStreak(log, { goalMinutes: data.streakGoal || DEFAULT_SETTINGS.streakGoal, overrides: data.categoryOverrides || {} }).longest;
 }
@@ -101,7 +99,7 @@ async function clearOldData() {
 }
 
 async function resetSettings() {
-  if (!confirm('Reset all settings (including API keys) to defaults? Your activity data is kept.')) return;
+  if (!confirm('Reset all settings (including API keys) to defaults? Your activity data and the data-retention period are kept.')) return;
   await sendToWorker({ type: 'resetSettings' });
   fillForm(await loadSettings());
   setStatus('dataStatus', 'success', 'Settings reset to defaults.');

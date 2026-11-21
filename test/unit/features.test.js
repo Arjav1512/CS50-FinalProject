@@ -133,13 +133,26 @@ test('Clear All Data removes data but keeps settings; Reset Settings keeps data'
   assert.equal(data.geminiApiKey, 'k');
   assert.equal((await chrome.storage.session.get('activeSession')).activeSession, undefined, 'running visit discarded too');
 
-  await chrome.storage.local.set({ activityLog: [{ id: 'b', domain: 'b.com', when: T0, timeSpent: 9 }] });
+  await chrome.storage.local.set({ activityLog: [{ id: 'b', domain: 'b.com', when: T0, timeSpent: 9 }], dataRetention: 0 });
   await send(chrome, { type: 'resetSettings' });
   data = await chrome.storage.local.get(null);
   assert.equal(data.activityLog.length, 1);
   assert.equal(data.streakGoal, undefined);
   assert.equal(data.geminiApiKey, undefined);
   assert.equal(data.theme, undefined);
+  assert.equal(data.dataRetention, 0, 'retention period is kept (review finding)');
+});
+
+test('Reset All Settings never causes old history to be deleted later (review finding)', async () => {
+  const chrome = browser();
+  const day = 86400000;
+  await chrome.storage.local.set({ schemaVersion: SCHEMA_VERSION, dataRetention: 0,
+    activityLog: [{ id: 'ancient', domain: 'a.com', when: T0 - 200 * day, timeSpent: 5 }] });
+  await boot(chrome);
+  await send(chrome, { type: 'resetSettings' });
+  await chrome.runtime.onStartup.dispatch();
+  await chrome._fireAlarm('retention');
+  assert.equal((await chrome.storage.local.get('activityLog')).activityLog.length, 1);
 });
 
 test('Clear Old Data uses the saved retention period and reports what it removed', async () => {

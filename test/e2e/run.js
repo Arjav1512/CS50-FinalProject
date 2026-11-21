@@ -132,6 +132,14 @@ async function main() {
       ({ worker } = await attachWorker(browser, extensionId, sw));
       const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
       record('extension loads (service worker running)', true, `${manifest.name} ${manifest.version}, id ${extensionId}`);
+      // Positive control: prove the worker's network capture works before
+      // trusting "zero requests". This test-only request is made via DevTools.
+      const probe = `http://probe.test:${port}/probe`;
+      await worker.evaluate(u => fetch(u, { mode: 'no-cors' }).then(() => true, () => false), probe);
+      await sleep(300);
+      const seen = sw.requests.includes(probe);
+      record('positive control: a request made inside the worker IS captured', seen);
+      sw.requests = sw.requests.filter(u => u !== probe);
     } catch (e) {
       record('extension loads (service worker running)', false, e.message);
       throw e;
@@ -399,7 +407,7 @@ async function main() {
     dialogAction = 'accept';
     await p.click('#clearDataBtn'); await sleep(800);
     const afterClear = await store(null);
-    record('settings: Clear All Data deletes activity/summaries/overrides and keeps settings',
+    record('settings: Clear Activity Data deletes activity/summaries/overrides and keeps settings',
       /permanently deletes/.test(dialogs.at(-1) || '') && !afterClear.activityLog && !afterClear.summaries && !afterClear.categoryOverrides && afterClear.theme === 'auto' && afterClear.geminiApiKey === 'SECRET-GEMINI');
     record('popup controls: zero console errors', shotSink.errors.length === 0, shotSink.errors.slice(0, 3).join(' | '));
     const late = shotSink.requests.filter(u => !isExtUrl(u, extensionId));

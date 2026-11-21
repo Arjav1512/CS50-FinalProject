@@ -73,7 +73,7 @@
                         <div class="progress-bar">
                             <div class="progress-fill" id="streakProgress"></div>
                         </div>
-                        <span class="progress-text">Next milestone: 7 days</span>
+                        <span class="progress-text" id="milestoneText">Next milestone: 7 days</span>
                     </div>
                 </div>
 
@@ -182,10 +182,10 @@
                 <div class="settings-section">
                     <h4>Data Management</h4>
                     <p class="privacy-note">The export contains your activity, summaries and settings, but never your API keys.
-                        Clear All Data deletes activity, summaries and category changes; settings are kept.</p>
+                        Clear Activity Data deletes activity, summaries, category changes and the focus session; settings are kept.</p>
                     <div class="data-actions">
                         <button id="exportDataBtn" class="action-btn secondary">📤 Export Data (JSON)</button>
-                        <button id="clearDataBtn" class="action-btn danger">🗑️ Clear All Data</button>
+                        <button id="clearDataBtn" class="action-btn danger">🗑️ Clear Activity Data</button>
                     </div>
                 </div>
 
