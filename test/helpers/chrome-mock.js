@@ -146,13 +146,13 @@ export function createChromeMock({ now = () => Date.now() } = {}) {
       lastError: undefined,
       getURL: p => `chrome-extension://mock-extension-id/${p}`,
       // Delivers a message to onMessage listeners like Chrome does.
-      sendMessage(msg) {
+      sendMessage(msg, sender = { id: chrome.runtime.id, url: chrome.runtime.getURL('ui.html') }) {
         return new Promise(resolve => {
           let responded = false;
           const sendResponse = v => { if (!responded) { responded = true; resolve(v); } };
           let keepOpen = false;
           for (const fn of chrome.runtime.onMessage.listeners) {
-            if (fn(msg, { id: chrome.runtime.id }, sendResponse) === true) keepOpen = true;
+            if (fn(msg, sender, sendResponse) === true) keepOpen = true;
           }
           if (!keepOpen) sendResponse(undefined);
         });

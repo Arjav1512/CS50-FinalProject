@@ -202,10 +202,25 @@ localhost</textarea>
                 <label for="trackIncognito">Track incognito browsing</label>
             </div>
             
+        </div>
+
+        <!-- AI summaries -->
+        <div class="options-section">
+            <h2>✨ AI Summaries (Google Gemini)</h2>
+            <p>Off by default. When on, the popup's <strong>Summarize this page</strong> button sends the text of the current tab
+               (up to 3,000 characters, only when you click it) to Google Gemini. Excluded domains are never summarized.</p>
+
             <div class="checkbox-group">
-                <input type="checkbox" id="enableSummaries" checked>
-                <label for="enableSummaries">Enable AI summaries (requires Gemini API key)</label>
+                <input type="checkbox" id="enableSummaries">
+                <label for="enableSummaries">Enable "Summarize this page"</label>
             </div>
+
+            <div class="form-group">
+                <label for="geminiApiKey">Gemini API Key</label>
+                <input type="password" id="geminiApiKey" placeholder="Paste your key from Google AI Studio" autocomplete="off">
+                <small>Get a key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>. It is stored only in this browser (chrome.storage.local) and sent only to Google, in a request header.</small>
+            </div>
+            <div id="geminiStatus" class="status-message"></div>
         </div>
 
         <!-- Gamification Settings -->

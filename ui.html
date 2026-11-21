@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Digital Diary</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -83,6 +80,12 @@
                 <div id="todayReport" class="today-summary">
                     <h3>Today's Activity</h3>
                     <div class="loading">Loading your digital footprint...</div>
+                </div>
+
+                <div class="summarize-section">
+                    <button id="summarizeBtn" class="action-btn secondary">✨ Summarize this page</button>
+                    <p class="privacy-note">Sends this page's text to Google Gemini.</p>
+                    <div id="summaryResult" aria-live="polite"></div>
                 </div>
 
                 <div class="quick-actions">

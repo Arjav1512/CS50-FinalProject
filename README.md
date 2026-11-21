@@ -8,7 +8,7 @@
 
 Digital Diary is a lightweight Chrome extension designed to help users better understand their online behaviour, summarise their content consumption, and gently nudge them toward more mindful digital habits. Instead of overwhelming users with stats or analytics dashboards, this extension gives you a clean, minimal daily report of how you used your time online—categorised by purpose and powered by AI-generated summaries.
 
-Built to be non-intrusive and fully local, the extension tracks time spent on websites, categorises visited domains (e.g., "entertainment", "learning", "shopping"), and uses Google Gemini (via its API) to provide key takeaways from articles and media you consume. The goal is to help users reflect on their day and even extract value from what might otherwise be passive browsing.
+The extension tracks time spent on websites and categorises visited domains (e.g., "entertainment", "learning", "shopping"). Tracking data stays in your browser. Two optional features send data to outside services, and only when you click their buttons: **Summarize this page** (page text → Google Gemini) and **Export to Notion** (daily summary → Notion). See [Network requests](#-network-requests).
 
 ---
 
@@ -17,9 +17,9 @@ Built to be non-intrusive and fully local, the extension tracks time spent on we
 - Logs websites visited and how long you spent on each
 - Categorises those sites into helpful types like entertainment, learning, shopping, etc.
 - Generates a simple daily digest (time spent, sites visited, categories)
-- Uses Google Gemini AI to summarise what you read or watched (like news articles or YouTube podcasts)
+- Optional, off by default: a "Summarize this page" button that sends the current tab's text to Google Gemini, only when clicked
 - Offers personalised suggestions like “Try reading more tomorrow” if you're tilting too hard toward entertainment
-- Does not track or upload any personal data — everything runs locally in your browser
+- Tracking data is stored only in your browser; nothing is sent anywhere unless you click "Summarize this page" or "Export to Notion"
 
 ---
 
@@ -33,9 +33,9 @@ Built to be non-intrusive and fully local, the extension tracks time spent on we
 6. Start browsing! After visiting a few pages, click the extension icon to view your digital summary.
 
 ### 🔐 Setup Note (Gemini API Key)
-To enable AI summaries:
-- Head to [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey) and get your free Google Gemini API key.
-- Paste that key in `trackingtabs.js` where it says `YOUR_API_KEY_HERE`.
+AI summaries are off by default. To use them:
+- Get a Gemini API key at [Google AI Studio](https://aistudio.google.com/app/apikey).
+- Open the extension's **Full Settings**, tick **Enable "Summarize this page"** and paste the key.
 
 Without the key, the extension still works—just without the summarisation feature.
 
@@ -60,8 +60,8 @@ I deliberately chose to keep the UI minimal—just a pop-up with essential summa
 ### Gemini Integration
 Instead of building a large NLP pipeline, I integrated Google’s Gemini API, which allows AI-powered summarisation with minimal setup. It’s fast, free (for reasonable use), and keeps things smart.
 
-### Local-Only Data
-User trust was important, so I ensured that **all data is stored in `chrome.storage.local`** and never leaves the user’s machine. No accounts, no syncing, no servers.
+### Local Data
+**All data is stored in `chrome.storage.local`.** No accounts, no syncing, no servers. Data only leaves the browser through the two buttons listed under [Network requests](#-network-requests).
 
 ### Categorisation Strategy
 Rather than using a machine learning model to categorise websites (which could require training data and external APIs), I used a static mapping of popular domains to categories. It’s not exhaustive, but it works well enough for personal reflection.
@@ -81,6 +81,18 @@ Rather than using a machine learning model to categorise websites (which could r
 
 ---
 
+## 🌐 Network requests
+
+Found by searching the code for every `fetch` call. With default settings the extension makes **no** network requests.
+
+| When | What is sent | Where | Code |
+|---|---|---|---|
+| You click **Summarize this page** (only if enabled in settings and a key is set; never on excluded domains) | Page title + up to 3,000 characters of the current tab's text; your Gemini key in the `x-goog-api-key` header | `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent` | `lib/gemini.js` |
+| You click **Export to Notion** | Today's summary text (time per category, productivity score, today's AI summaries); your Notion key in the `Authorization` header | `https://api.notion.com/v1/pages` | `script.js` |
+| You click **Test Connection** (Notion) | Database ID; your Notion key | `https://api.notion.com/v1/databases/{id}` | `script.js`, `options.js` |
+
+---
+
 ## 📽️ Demo Video
 
 👉 (https://youtu.be/ZR7ZmUQUYdw)
@@ -89,7 +101,7 @@ Rather than using a machine learning model to categorise websites (which could r
 
 ## 🔐 Disclaimer
 
-This extension doesn’t upload or share anything. All logs are stored locally on your browser. You’re the only one who can see them. It’s just a mirror to help you understand where your digital time goes.
+All logs are stored locally in your browser. The extension sends nothing anywhere unless you click **Summarize this page** (Google Gemini) or **Export to Notion** (Notion).
 
 ---
 

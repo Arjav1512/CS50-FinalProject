@@ -1,4 +1,32 @@
 import { Utils } from './utils.js';
+import { withoutSecrets } from './lib/core.js';
+import { h, setChildren, sendToWorker } from './lib/ui.js';
+import { CATEGORY_COLORS } from './lib/core.js';
+
+// Bars for a { category: seconds } map.
+function categoryBars(categoryTime, total, showPercent) {
+  return h('div', { class: 'category-breakdown' }, Object.entries(categoryTime)
+    .sort((a, b) => b[1] - a[1])
+    .filter(([, seconds]) => showPercent || Math.round(seconds / 60) > 0)
+    .map(([category, seconds]) => {
+      const pct = Math.round((seconds / Math.max(1, total)) * 100);
+      return h('div', { class: 'category-bar-row' },
+        h('div', { class: 'category-bar-header' },
+          h('span', { class: 'activity-domain' }, category),
+          h('span', { class: 'activity-time' }, showPercent ? `${Utils.formatTime(seconds)} · ${pct}%` : Utils.formatTime(seconds))),
+        h('div', { class: 'category-bar-track' },
+          h('div', { class: 'category-bar-fill', style: { width: `${pct}%`, background: CATEGORY_COLORS[category] || 'var(--text-muted)' } })));
+    }));
+}
+
+// A stored AI summary (text that came from a web page via Gemini) — text only.
+function summaryCard(item) {
+  let label = item.title || '';
+  try { label = label || new URL(item.url).hostname; } catch { /* keep title */ }
+  return h('div', { class: 'summary-item' },
+    h('strong', {}, label),
+    h('p', {}, item.summary));
+}
 
 // Main popup script for Digital Diary extension
 
@@ -70,6 +98,10 @@ class DigitalDiary {
     // Home tab actions
     document.getElementById('startGoalBtn').addEventListener('click', () => {
       this.switchTab('goals');
+    });
+
+    document.getElementById('summarizeBtn').addEventListener('click', () => {
+      this.summarizeCurrentPage();
     });
 
     document.getElementById('exportNotionBtn').addEventListener('click', () => {
@@ -193,253 +225,122 @@ class DigitalDiary {
 
   renderTodaySummary() {
     const today = new Date().toDateString();
-    const todayActivities = this.activityLog.filter(entry => 
+    const todayActivities = this.activityLog.filter(entry =>
       new Date(entry.when).toDateString() === today
     );
-
     const summaryDiv = document.getElementById('todayReport');
-    
+
     if (todayActivities.length === 0) {
-      summaryDiv.innerHTML = `
-        <h3>Today's Activity</h3>
-        <div class="loading">No activity recorded today. Start browsing!</div>
-      `;
+      setChildren(summaryDiv,
+        h('h3', {}, "Today's Activity"),
+        h('div', { class: 'loading' }, 'No activity recorded today. Start browsing!'));
       return;
     }
 
-    // Calculate category breakdown
     const categoryTime = {};
     const domainBreakdown = {};
-
     todayActivities.forEach(entry => {
       const category = Utils.getCategoryForDomain(entry.domain);
       categoryTime[category] = (categoryTime[category] || 0) + entry.timeSpent;
       domainBreakdown[entry.domain] = (domainBreakdown[entry.domain] || 0) + entry.timeSpent;
     });
-
-    const categoryColors = {
-      'learning': 'var(--success)',
-      'productive': 'var(--accent-primary)',
-      'entertainment': 'var(--danger)',
-      'social media': 'var(--warning)',
-      'shopping': '#8b5cf6',
-      'news/info': 'var(--accent-secondary)',
-      'misc': 'var(--text-muted)'
-    };
     const totalCatTime = Object.values(categoryTime).reduce((a, b) => a + b, 0);
 
-    let html = `<h3>Today's Activity</h3>`;
+    const nodes = [h('h3', {}, "Today's Activity"), categoryBars(categoryTime, totalCatTime, false)];
 
-    // Category breakdown with visual bars
-    html += `<div class="category-breakdown">`;
-    Object.entries(categoryTime)
-      .sort((a, b) => b[1] - a[1])
-      .forEach(([category, seconds]) => {
-        const minutes = Math.round(seconds / 60);
-        if (minutes > 0) {
-          const pct = Math.round((seconds / totalCatTime) * 100);
-          const color = categoryColors[category] || 'var(--text-muted)';
-          html += `
-            <div class="category-bar-row">
-              <div class="category-bar-header">
-                <span class="activity-domain">${category}</span>
-                <span class="activity-time">${Utils.formatTime(seconds)}</span>
-              </div>
-              <div class="category-bar-track">
-                <div class="category-bar-fill" style="width:${pct}%;background:${color}"></div>
-              </div>
-            </div>
-          `;
-        }
-      });
-    html += `</div>`;
-
-    // Top domains
-    const topDomains = Object.entries(domainBreakdown)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
+    const topDomains = Object.entries(domainBreakdown).sort((a, b) => b[1] - a[1]).slice(0, 5);
     if (topDomains.length > 0) {
-      html += `<h4 style="margin-top: 16px; margin-bottom: 8px;">Top Sites</h4>`;
-      html += `<ul class="activity-list">`;
-      topDomains.forEach(([domain, seconds]) => {
+      nodes.push(h('h4', { style: { marginTop: '16px', marginBottom: '8px' } }, 'Top Sites'));
+      nodes.push(h('ul', { class: 'activity-list' }, topDomains.map(([domain, seconds]) => {
         const category = Utils.getCategoryForDomain(domain);
-        html += `
-          <li class="activity-item">
-            <div>
-              <span class="activity-domain">${domain}</span>
-              <span class="category-tag category-${category.replace(' ', '-')}">${category}</span>
-            </div>
-            <span class="activity-time">${Utils.formatTime(seconds)}</span>
-          </li>
-        `;
-      });
-      html += `</ul>`;
+        return h('li', { class: 'activity-item' },
+          h('div', {},
+            h('span', { class: 'activity-domain' }, domain),
+            h('span', { class: `category-tag category-${category.replace(' ', '-')}` }, category)),
+          h('span', { class: 'activity-time' }, Utils.formatTime(seconds)));
+      })));
     }
 
-    // Recent summaries
-    const todaySummaries = this.summaries.filter(summary => 
-      new Date(summary.time).toDateString() === today
-    ).slice(-2);
-
+    const todaySummaries = this.summaries.filter(s => new Date(s.time).toDateString() === today).slice(-2);
     if (todaySummaries.length > 0) {
-      html += `<h4 style="margin-top: 16px; margin-bottom: 8px;">Key Takeaways</h4>`;
-      todaySummaries.forEach(summary => {
-        try {
-          const hostname = new URL(summary.url).hostname;
-          html += `
-            <div class="summary-item" style="margin-bottom: 12px; padding: 8px; background: var(--bg-tertiary); border-radius: 6px;">
-              <strong style="font-size: 0.875rem;">${hostname}</strong>
-              <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">${summary.summary}</p>
-            </div>
-          `;
-        } catch (e) {
-          // Skip invalid URLs
-        }
-      });
+      nodes.push(h('h4', { style: { marginTop: '16px', marginBottom: '8px' } }, 'Key Takeaways'));
+      todaySummaries.forEach(item => nodes.push(summaryCard(item)));
     }
-
-    summaryDiv.innerHTML = html;
+    setChildren(summaryDiv, nodes);
   }
 
   renderReports() {
     const dateRange = document.getElementById('dateRange').value;
     const { start, end } = Utils.getDateRange(dateRange);
-    
     const filteredActivities = this.activityLog.filter(entry => {
       const entryDate = new Date(entry.when);
       return entryDate >= start && entryDate <= end;
     });
-
     this.renderReportContent(filteredActivities, dateRange);
   }
 
   renderReportContent(activities, period) {
     const reportDiv = document.getElementById('reportContent');
-    
     if (activities.length === 0) {
-      reportDiv.innerHTML = `<p>No activity data for the selected period.</p>`;
+      setChildren(reportDiv, h('p', {}, 'No activity data for the selected period.'));
       return;
     }
-
-    // Calculate statistics
     const totalTime = activities.reduce((sum, entry) => sum + entry.timeSpent, 0);
     const categoryTime = {};
     const dailyActivity = {};
-
     activities.forEach(entry => {
       const category = Utils.getCategoryForDomain(entry.domain);
       const date = new Date(entry.when).toDateString();
-      
       categoryTime[category] = (categoryTime[category] || 0) + entry.timeSpent;
-      
-      if (!dailyActivity[date]) {
-        dailyActivity[date] = 0;
-      }
-      dailyActivity[date] += entry.timeSpent;
+      dailyActivity[date] = (dailyActivity[date] || 0) + entry.timeSpent;
     });
+    const days = Object.keys(dailyActivity).length;
 
-    let html = `
-      <div class="report-summary">
-        <h4>${period.charAt(0).toUpperCase() + period.slice(1)} Summary</h4>
-        <p><strong>Total Time Tracked:</strong> ${Utils.formatTime(totalTime)}</p>
-        <p><strong>Days Active:</strong> ${Object.keys(dailyActivity).length}</p>
-        <p><strong>Average Daily Time:</strong> ${Utils.formatTime(totalTime / Math.max(1, Object.keys(dailyActivity).length))}</p>
-      </div>
-    `;
+    const nodes = [
+      h('div', { class: 'report-summary' },
+        h('h4', {}, `${period.charAt(0).toUpperCase() + period.slice(1)} Summary`),
+        h('p', {}, h('strong', {}, 'Total Time Tracked:'), ` ${Utils.formatTime(totalTime)}`),
+        h('p', {}, h('strong', {}, 'Days Active:'), ` ${days}`),
+        h('p', {}, h('strong', {}, 'Average Daily Time:'), ` ${Utils.formatTime(totalTime / Math.max(1, days))}`)),
+      h('h4', { style: { marginTop: '20px' } }, 'Time by Category'),
+      categoryBars(categoryTime, totalTime, true)
+    ];
 
-    // Category breakdown with visual bars
-    const reportCategoryColors = {
-      'learning': 'var(--success)',
-      'productive': 'var(--accent-primary)',
-      'entertainment': 'var(--danger)',
-      'social media': 'var(--warning)',
-      'shopping': '#8b5cf6',
-      'news/info': 'var(--accent-secondary)',
-      'misc': 'var(--text-muted)'
-    };
-    html += `<h4 style="margin-top: 20px;">Time by Category</h4>`;
-    Object.entries(categoryTime)
-      .sort((a, b) => b[1] - a[1])
-      .forEach(([category, seconds]) => {
-        const pct = Math.round((seconds / totalTime) * 100);
-        const color = reportCategoryColors[category] || 'var(--text-muted)';
-        html += `
-          <div class="category-bar-row">
-            <div class="category-bar-header">
-              <span class="activity-domain">${category}</span>
-              <span class="activity-time">${Utils.formatTime(seconds)} &middot; ${pct}%</span>
-            </div>
-            <div class="category-bar-track">
-              <div class="category-bar-fill" style="width:${pct}%;background:${color}"></div>
-            </div>
-          </div>
-        `;
-      });
-
-    // Daily breakdown
-    if (Object.keys(dailyActivity).length > 1) {
-      html += `<h4 style="margin-top: 20px;">Daily Activity</h4>`;
-      html += `<ul class="activity-list">`;
-      Object.entries(dailyActivity)
-        .sort((a, b) => new Date(b[0]) - new Date(a[0]))
-        .slice(0, 7) // Show last 7 days
-        .forEach(([date, seconds]) => {
-          const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-          html += `
-            <li class="activity-item">
-              <span class="activity-domain">${dayName}</span>
-              <span class="activity-time">${Utils.formatTime(seconds)}</span>
-            </li>
-          `;
-        });
-      html += `</ul>`;
+    if (days > 1) {
+      nodes.push(h('h4', { style: { marginTop: '20px' } }, 'Daily Activity'));
+      nodes.push(h('ul', { class: 'activity-list' },
+        Object.entries(dailyActivity)
+          .sort((a, b) => new Date(b[0]) - new Date(a[0]))
+          .slice(0, 7)
+          .map(([date, seconds]) => h('li', { class: 'activity-item' },
+            h('span', { class: 'activity-domain' }, new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })),
+            h('span', { class: 'activity-time' }, Utils.formatTime(seconds))))));
     }
-
-    reportDiv.innerHTML = html;
+    setChildren(reportDiv, nodes);
   }
 
   renderGoals() {
-    // Clear any existing countdown
     if (this.goalCountdownInterval) {
       clearInterval(this.goalCountdownInterval);
       this.goalCountdownInterval = null;
     }
-
     const goalDisplay = document.getElementById('currentGoal');
     if (this.currentGoal && this.currentGoal.active) {
       const elapsed = Math.floor((Date.now() - this.currentGoal.startTime) / 1000);
       const remaining = Math.max(0, this.currentGoal.duration - elapsed);
       const progress = Math.min(100, (elapsed / this.currentGoal.duration) * 100);
+      const fill = h('div', { class: 'progress-fill', style: { width: `${progress}%` } });
+      const remainingText = h('p', {}, `${Utils.formatTime(remaining)} remaining`);
+      setChildren(goalDisplay, h('div', { class: 'active-goal' },
+        h('h5', {}, `${this.currentGoal.type} Session`),
+        h('div', { class: 'goal-progress' }, h('div', { class: 'progress-bar' }, fill), remainingText),
+        h('button', { class: 'action-btn danger', onclick: () => this.stopGoal() }, 'Stop Session')));
 
-      goalDisplay.innerHTML = `
-        <div class="active-goal">
-          <h5>${this.currentGoal.type} Session</h5>
-          <div class="goal-progress">
-            <div class="progress-bar">
-              <div class="progress-fill" id="goalProgressFill" style="width: ${progress}%"></div>
-            </div>
-            <p id="goalRemaining">${Utils.formatTime(remaining)} remaining</p>
-          </div>
-          <button id="stopGoalBtn" class="action-btn danger">Stop Session</button>
-        </div>
-      `;
-
-      document.getElementById('stopGoalBtn').addEventListener('click', () => {
-        this.stopGoal();
-      });
-
-      // Live 1-second countdown
       this.goalCountdownInterval = setInterval(() => {
         const el = Math.floor((Date.now() - this.currentGoal.startTime) / 1000);
         const rem = Math.max(0, this.currentGoal.duration - el);
-        const prog = Math.min(100, (el / this.currentGoal.duration) * 100);
-
-        const remEl = document.getElementById('goalRemaining');
-        const progEl = document.getElementById('goalProgressFill');
-        if (remEl) remEl.textContent = `${Utils.formatTime(rem)} remaining`;
-        if (progEl) progEl.style.width = `${prog}%`;
-
+        remainingText.textContent = `${Utils.formatTime(rem)} remaining`;
+        fill.style.width = `${Math.min(100, (el / this.currentGoal.duration) * 100)}%`;
         if (rem === 0) {
           clearInterval(this.goalCountdownInterval);
           this.goalCountdownInterval = null;
@@ -447,92 +348,45 @@ class DigitalDiary {
         }
       }, 1000);
     } else {
-      goalDisplay.innerHTML = `<p>No active goal. Set one below!</p>`;
+      setChildren(goalDisplay, h('p', {}, 'No active goal. Set one below!'));
     }
-
-    // Update achievements
     this.renderAchievements();
-
-    // Update streak chart
     this.renderStreakChart();
   }
 
   renderAchievements() {
-    const achievementsGrid = document.getElementById('achievementsList');
-    
-    let html = '';
-    this.achievements.forEach(achievement => {
-      const unlockedClass = achievement.unlocked ? 'unlocked' : '';
-      html += `
-        <div class="achievement-item ${unlockedClass}">
-          <div style="font-size: 1.5rem; margin-bottom: 4px;">${achievement.icon}</div>
-          <div style="font-size: 0.75rem; font-weight: 500;">${achievement.name}</div>
-          <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 2px;">${achievement.description}</div>
-        </div>
-      `;
-    });
-
-    achievementsGrid.innerHTML = html;
+    setChildren(document.getElementById('achievementsList'), this.achievements.map(a =>
+      h('div', { class: `achievement-item ${a.unlocked ? 'unlocked' : ''}` },
+        h('div', { style: { fontSize: '1.5rem', marginBottom: '4px' } }, a.icon),
+        h('div', { style: { fontSize: '0.75rem', fontWeight: '500' } }, a.name),
+        h('div', { style: { fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' } }, a.description))));
   }
 
   renderStreakChart() {
-    const chartDiv = document.getElementById('streakChart');
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
     const days = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       days.push(d);
     }
-
-    let html = '<div class="heatmap-grid">';
-
-    days.forEach((date, idx) => {
+    const grid = h('div', { class: 'heatmap-grid' }, days.map((date, idx) => {
       const dateStr = date.toDateString();
-      const dayActivities = this.activityLog.filter(entry =>
-        new Date(entry.when).toDateString() === dateStr
-      );
-
-      const productiveTime = dayActivities
+      const productiveTime = this.activityLog
+        .filter(entry => new Date(entry.when).toDateString() === dateStr)
         .filter(entry => ['learning', 'productive'].includes(Utils.getCategoryForDomain(entry.domain)))
         .reduce((sum, entry) => sum + entry.timeSpent, 0);
-
       const minutes = productiveTime / 60;
-      let level = 0;
-      if (minutes >= 120) level = 4;
-      else if (minutes >= 60) level = 3;
-      else if (minutes >= 30) level = 2;
-      else if (minutes > 0) level = 1;
-
-      const isToday = idx === 6;
-      const label = dayNames[date.getDay()];
-      const title = `${date.toLocaleDateString()}: ${Utils.formatTime(productiveTime)} productive`;
-
-      html += `
-        <div class="heatmap-col">
-          <div class="heatmap-day level-${level}${isToday ? ' today' : ''}" title="${title}"></div>
-          <span class="heatmap-label">${label}</span>
-        </div>
-      `;
-    });
-
-    html += '</div>';
-    html += `
-      <div class="heatmap-legend">
-        <span>Less</span>
-        <div class="heatmap-legend-squares">
-          <div class="heatmap-day level-0"></div>
-          <div class="heatmap-day level-1"></div>
-          <div class="heatmap-day level-2"></div>
-          <div class="heatmap-day level-3"></div>
-          <div class="heatmap-day level-4"></div>
-        </div>
-        <span>More</span>
-      </div>
-    `;
-
-    chartDiv.innerHTML = html;
+      const level = minutes >= 120 ? 4 : minutes >= 60 ? 3 : minutes >= 30 ? 2 : minutes > 0 ? 1 : 0;
+      return h('div', { class: 'heatmap-col' },
+        h('div', { class: `heatmap-day level-${level}${idx === 6 ? ' today' : ''}`, title: `${date.toLocaleDateString()}: ${Utils.formatTime(productiveTime)} productive` }),
+        h('span', { class: 'heatmap-label' }, dayNames[date.getDay()]));
+    }));
+    const legend = h('div', { class: 'heatmap-legend' },
+      h('span', {}, 'Less'),
+      h('div', { class: 'heatmap-legend-squares' }, [0, 1, 2, 3, 4].map(l => h('div', { class: `heatmap-day level-${l}` }))),
+      h('span', {}, 'More'));
+    setChildren(document.getElementById('streakChart'), grid, legend);
   }
 
   renderSettings() {
@@ -619,6 +473,28 @@ class DigitalDiary {
       Utils.setStorageData({ currentGoal: this.currentGoal });
       alert(`🎉 Goal completed! You finished your ${this.currentGoal.type} session.`);
       this.renderGoals();
+    }
+  }
+
+  // Reads ONLY the current tab, ONLY now (activeTab + scripting, in the worker).
+  async summarizeCurrentPage() {
+    const button = document.getElementById('summarizeBtn');
+    const out = document.getElementById('summaryResult');
+    button.disabled = true;
+    setChildren(out, h('div', { class: 'loading' }, 'Summarizing…'));
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const result = tab ? await sendToWorker({ type: 'summarizePage', tabId: tab.id }) : { ok: false, error: 'No active tab.' };
+      if (result && result.ok) {
+        setChildren(out, summaryCard(result));
+        await this.loadData();
+      } else {
+        setChildren(out, h('div', { class: 'status-message error' }, (result && result.error) || 'Could not summarize this page.'));
+      }
+    } catch (err) {
+      setChildren(out, h('div', { class: 'status-message error' }, err.message));
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -866,7 +742,7 @@ class DigitalDiary {
 
   exportAllData() {
     Utils.getStorageData(null).then(data => {
-      Utils.exportToJSON(data);
+      Utils.exportToJSON(withoutSecrets(data));
       alert('📤 All data exported successfully!');
     });
   }

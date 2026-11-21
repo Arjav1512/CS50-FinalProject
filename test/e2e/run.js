@@ -235,6 +235,17 @@ async function main() {
     }
     await options.close();
 
+    // 6b. "Summarize this page" with default settings: refused, nothing read or sent.
+    const swReqBefore = sw.requests.length;
+    const popupReqBefore = popupSink.requests.length;
+    await popup.bringToFront();
+    await popup.click('#summarizeBtn');
+    await popup.waitForFunction(() => !document.querySelector('#summarizeBtn').disabled, { timeout: 10000 });
+    const summarizeMsg = await popup.$eval('#summaryResult', el => el.textContent.trim());
+    const newReqs = [...sw.requests.slice(swReqBefore), ...popupSink.requests.slice(popupReqBefore)].filter(u => !isExtUrl(u, extensionId));
+    record('summarize with default settings is refused and sends nothing',
+      /turned off/i.test(summarizeMsg) && newReqs.length === 0, `message: "${summarizeMsg}"; requests: ${newReqs.length}`);
+
     // 6. Service worker errors (CDP) and Chrome log lines mentioning the extension.
     const logErrors = stderrLines.filter(l => l.includes(extensionId) && /Uncaught|Error/i.test(l));
     record('service worker: zero errors', sw.errors.length === 0 && logErrors.length === 0,

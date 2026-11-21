@@ -3,31 +3,23 @@
 // can wake this worker for them after it has been stopped.
 
 import { registerTracker } from './lib/tracker.js';
+import { summarizePage } from './lib/summarize.js';
 
 const tracker = registerTracker(chrome);
 
-// --- Legacy page-summary handler (replaced in the privacy phase) -----------
-const GEMINI_API_KEY = "YOUR_API_KEY_HERE";
+// Messages from the extension's own pages (popup, options). There are no
+// content scripts, and messages from anywhere else are ignored.
+const messageHandlers = {
+  summarizePage: msg => summarizePage(chrome, tracker, msg.tabId)
+};
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type !== "summarize") return;
-  tracker.getSettings().then(settings => {
-    if (!settings.enableSummaries || GEMINI_API_KEY === "YOUR_API_KEY_HERE") return;
-    const prompt = `Summarize the following webpage content in 2-3 bullet points with key takeaways:\n\n${msg.text}`;
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    })
-      .then(res => res.json())
-      .then(data => {
-        const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || "No summary available.";
-        return tracker.run(async () => {
-          const { summaries = [] } = await chrome.storage.local.get("summaries");
-          summaries.push({ url: msg.url, summary, time: Date.now() });
-          await chrome.storage.local.set({ summaries });
-        });
-      })
-      .catch(err => console.error("[GEMINI ERROR]", err));
-  });
+const fromOwnPage = sender => sender.id === chrome.runtime.id &&
+  typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!fromOwnPage(sender) || !msg || !messageHandlers[msg.type]) return false;
+  messageHandlers[msg.type](msg)
+    .then(result => sendResponse(result ?? { ok: true }))
+    .catch(err => sendResponse({ ok: false, error: err.message }));
+  return true; // keep the channel open for the async response
 });

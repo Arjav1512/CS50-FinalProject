@@ -1,4 +1,5 @@
 import { Utils } from './utils.js';
+import { withoutSecrets } from './lib/core.js';
 
 // Options page script for Digital Diary extension
 
@@ -26,6 +27,7 @@ class OptionsPage {
       'excludedDomains',
       'trackIncognito',
       'enableSummaries',
+      'geminiApiKey',
       'streakGoal',
       'enableNotifications',
       'enableGoalReminders',
@@ -122,7 +124,8 @@ class OptionsPage {
       document.getElementById('excludedDomains').value = this.settings.excludedDomains.join('\n');
     }
     document.getElementById('trackIncognito').checked = this.settings.trackIncognito || false;
-    document.getElementById('enableSummaries').checked = this.settings.enableSummaries !== false;
+    document.getElementById('enableSummaries').checked = this.settings.enableSummaries === true;
+    document.getElementById('geminiApiKey').value = this.settings.geminiApiKey || '';
 
     // Gamification
     document.getElementById('streakGoal').value = this.settings.streakGoal || 30;
@@ -191,6 +194,7 @@ class OptionsPage {
       excludedDomains: excludedDomains,
       trackIncognito: document.getElementById('trackIncognito').checked,
       enableSummaries: document.getElementById('enableSummaries').checked,
+      geminiApiKey: document.getElementById('geminiApiKey').value.trim(),
       streakGoal: parseInt(document.getElementById('streakGoal').value) || 30,
       enableNotifications: document.getElementById('enableNotifications').checked,
       enableGoalReminders: document.getElementById('enableGoalReminders').checked,
@@ -214,7 +218,7 @@ class OptionsPage {
 
   async exportAllData() {
     const data = await Utils.getStorageData(null);
-    Utils.exportToJSON(data);
+    Utils.exportToJSON(withoutSecrets(data));
     alert('📤 All data exported successfully!');
   }
 
