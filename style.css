@@ -439,7 +439,6 @@ body {
   flex-wrap: wrap;
 }
 
-.goal-setup select,
 .goal-setup input {
   padding: 8px 12px;
   border: 1px solid var(--border);
@@ -447,10 +446,6 @@ body {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   font-size: 0.875rem;
-}
-
-.goal-setup select {
-  flex: 2;
 }
 
 .goal-setup input {
@@ -628,40 +623,6 @@ body {
 .activity-time {
   color: var(--text-secondary);
   font-size: 0.875rem;
-}
-
-.category-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  margin-left: 8px;
-}
-
-.category-entertainment {
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--danger);
-}
-
-.category-learning {
-  background: rgba(16, 185, 129, 0.1);
-  color: var(--success);
-}
-
-.category-productive {
-  background: rgba(79, 70, 229, 0.1);
-  color: var(--accent-primary);
-}
-
-.category-social {
-  background: rgba(245, 158, 11, 0.1);
-  color: var(--warning);
-}
-
-.category-misc {
-  background: rgba(107, 114, 128, 0.1);
-  color: var(--text-muted);
 }
 
 /* Responsive Design */

@@ -7,9 +7,9 @@ import {
   CATEGORIES, CATEGORY_COLORS, getCategory, formatTime, calculateProductivityScore,
   calculateStreak, generateAchievements, getDateRange, filterByRange, dayKey,
   productiveSecondsByDay, timeByCategory, timeByDomain, buildDailySummaryText,
-  buildReportText, focusResultMessage, withDefaults, withoutSecrets, DEFAULT_SETTINGS
+  buildReportText, focusResultMessage, withDefaults, DEFAULT_SETTINGS
 } from './lib/core.js';
-import { h, setChildren, downloadFile, todayStamp, applyTheme, sendToWorker, storageGet, storageSet } from './lib/ui.js';
+import { h, setChildren, downloadFile, todayStamp, applyTheme, sendToWorker, storageGet, storageSet, showStatus, exportDataFile } from './lib/ui.js';
 import { exportToNotion } from './lib/notion.js';
 
 const PERIOD_LABELS = { today: 'Today', week: 'This Week', month: 'This Month', custom: 'Custom Range' };
@@ -44,12 +44,6 @@ const todayRange = () => { const d = new Date(); return { start: new Date(d.getF
 const todaysActivity = () => { const { start, end } = todayRange(); return filterByRange(state.log, start, end); };
 const todaysSummaries = () => { const { start, end } = todayRange(); return filterByRange(state.summaries, start, end, 'time'); };
 const streak = () => calculateStreak(state.log, { goalMinutes: state.settings.streakGoal, overrides: state.overrides });
-
-function showStatus(el, type, message, ms = 4000) {
-  el.className = `status-message ${type}`;
-  el.textContent = message;
-  if (ms) setTimeout(() => { el.className = 'status-message'; el.textContent = ''; }, ms);
-}
 
 // ---------------------------------------------------------------------------
 // Shared building blocks
@@ -317,11 +311,6 @@ function renderTheme() {
   if (radio) radio.checked = true;
 }
 
-async function exportData() {
-  const data = await storageGet(null);
-  downloadFile(`digital-diary-export-${todayStamp()}.json`, JSON.stringify(withoutSecrets(data), null, 2), 'application/json');
-}
-
 async function clearAllData() {
   if (!confirm('⚠️ This permanently deletes all activity, AI summaries and category changes. Your settings are kept. Continue?')) return;
   await sendToWorker({ type: 'clearAllData' });
@@ -359,7 +348,7 @@ function setup() {
   $('downloadReportBtn').addEventListener('click', downloadReport);
   $('refreshReportBtn').addEventListener('click', async () => { await loadData(); renderReports(); });
   $('startFocusBtn').addEventListener('click', startFocus);
-  $('exportDataBtn').addEventListener('click', exportData);
+  $('exportDataBtn').addEventListener('click', exportDataFile);
   $('clearDataBtn').addEventListener('click', clearAllData);
   $('openOptionsBtn').addEventListener('click', e => { e.preventDefault(); chrome.runtime.openOptionsPage(); });
   document.querySelectorAll('input[name="theme"]').forEach(radio =>
@@ -375,6 +364,7 @@ function setup() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  $('popupVersion').textContent = chrome.runtime.getManifest().version;
   setup();
   await loadData();
   const { start } = getDateRange('week');

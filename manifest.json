@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Daily Digital Diary",
+  "name": "Digital Diary",
   "version": "1.1.0",
-  "description": "Tracks what you're doing online so you can stop crying about lost time",
+  "description": "See where your time online goes: time per site and category, streaks, focus sessions and reports. Your data stays in your browser.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

@@ -1,7 +1,7 @@
 // Digital Diary options page. Every field saves automatically on change.
 
-import { DEFAULT_SETTINGS, withDefaults, withoutSecrets, formatTime, calculateStreak, toTimestamp, dayKey } from './lib/core.js';
-import { downloadFile, todayStamp, applyTheme, debounce, storageGet, storageSet, sendToWorker } from './lib/ui.js';
+import { DEFAULT_SETTINGS, withDefaults, formatTime, calculateStreak, toTimestamp, dayKey } from './lib/core.js';
+import { applyTheme, debounce, storageGet, storageSet, sendToWorker, showStatus as showStatusIn, exportDataFile } from './lib/ui.js';
 import { getDatabase, databaseTitle, normalizeDatabaseId } from './lib/notion.js';
 
 const $ = id => document.getElementById(id);
@@ -10,12 +10,7 @@ const clampInt = (value, min, max, fallback) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 };
 
-function showStatus(id, type, message, ms = 4000) {
-  const el = $(id);
-  el.className = `status-message ${type}`;
-  el.textContent = message;
-  if (ms) setTimeout(() => { el.className = 'status-message'; el.textContent = ''; }, ms);
-}
+const setStatus = (id, type, message, ms) => showStatusIn($(id), type, message, ms);
 
 // Reads the form into a settings object (validated).
 function readForm() {
@@ -52,7 +47,7 @@ async function saveAll() {
   const settings = readForm();
   await storageSet(settings);
   fillForm({ ...(await loadSettings()), ...settings }); // show clamped values
-  showStatus('saveStatus', 'success', 'Saved', 1500);
+  setStatus('saveStatus', 'success', 'Saved', 1500);
 }
 
 async function renderStatistics() {
@@ -70,39 +65,38 @@ async function testNotion() {
   const apiKey = $('notionApiKey').value.trim();
   const databaseId = $('notionDatabaseId').value.trim();
   if (!apiKey || !normalizeDatabaseId(databaseId)) {
-    showStatus('notionStatus', 'error', 'Enter your Notion API key and a valid database ID.');
+    setStatus('notionStatus', 'error', 'Enter your Notion API key and a valid database ID.');
     return;
   }
-  showStatus('notionStatus', 'success', 'Connecting…', 0);
+  setStatus('notionStatus', 'success', 'Connecting…', 0);
   try {
     const db = await getDatabase(fetch, apiKey, databaseId);
-    showStatus('notionStatus', 'success', `✅ Connected to "${databaseTitle(db)}".`, 6000);
+    setStatus('notionStatus', 'success', `✅ Connected to "${databaseTitle(db)}".`, 6000);
   } catch (err) {
-    showStatus('notionStatus', 'error', `❌ Connection failed: ${err.message}`, 8000);
+    setStatus('notionStatus', 'error', `❌ Connection failed: ${err.message}`, 8000);
   }
 }
 
 async function saveNotion() {
   await storageSet({ notionApiKey: $('notionApiKey').value.trim(), notionDatabaseId: $('notionDatabaseId').value.trim() });
-  showStatus('notionStatus', 'success', '✅ Notion settings saved.');
+  setStatus('notionStatus', 'success', '✅ Notion settings saved.');
 }
 
 async function exportData() {
-  const data = await storageGet(null);
-  downloadFile(`digital-diary-export-${todayStamp()}.json`, JSON.stringify(withoutSecrets(data), null, 2), 'application/json');
-  showStatus('dataStatus', 'success', 'Exported (API keys are not included).');
+  await exportDataFile();
+  setStatus('dataStatus', 'success', 'Exported (API keys are not included).');
 }
 
 async function clearOldData() {
   await saveAll(); // use the retention period currently selected
   const days = Number($('dataRetention').value);
   if (days === 0) {
-    showStatus('dataStatus', 'error', 'Retention is set to "Keep forever", so nothing was deleted.', 6000);
+    setStatus('dataStatus', 'error', 'Retention is set to "Keep forever", so nothing was deleted.', 6000);
     return;
   }
   if (!confirm(`Delete activity and AI summaries older than ${days} days?`)) return;
   const result = await sendToWorker({ type: 'clearOldData' });
-  showStatus('dataStatus', 'success', `Deleted ${result.removedActivities} visits and ${result.removedSummaries} summaries.`, 6000);
+  setStatus('dataStatus', 'success', `Deleted ${result.removedActivities} visits and ${result.removedSummaries} summaries.`, 6000);
   await renderStatistics();
 }
 
@@ -110,7 +104,7 @@ async function resetSettings() {
   if (!confirm('Reset all settings (including API keys) to defaults? Your activity data is kept.')) return;
   await sendToWorker({ type: 'resetSettings' });
   fillForm(await loadSettings());
-  showStatus('dataStatus', 'success', 'Settings reset to defaults.');
+  setStatus('dataStatus', 'success', 'Settings reset to defaults.');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
