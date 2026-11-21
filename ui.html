@@ -89,7 +89,7 @@
                 </div>
 
                 <div class="quick-actions">
-                    <button id="startGoalBtn" class="action-btn primary">🎯 Start Focus Session</button>
+                    <button id="startGoalBtn" class="action-btn primary">🎯 Focus Session</button>
                     <button id="exportNotionBtn" class="action-btn secondary">📝 Export to Notion</button>
                 </div>
             </div>
@@ -109,12 +109,15 @@
                 </div>
 
                 <div id="customDateRange" class="custom-date-range hidden">
+                    <label for="startDate">From</label>
                     <input type="date" id="startDate">
+                    <label for="endDate">To</label>
                     <input type="date" id="endDate">
                 </div>
+                <div id="rangeError" class="status-message error" role="alert"></div>
 
                 <div class="report-actions">
-                    <button id="generatePdfBtn" class="action-btn primary">📄 Download PDF Report</button>
+                    <button id="downloadReportBtn" class="action-btn primary">📄 Download report (.txt)</button>
                     <button id="refreshReportBtn" class="action-btn secondary">🔄 Refresh Data</button>
                 </div>
 
@@ -128,20 +131,18 @@
                 <h3>Goals & Achievements</h3>
                 
                 <div class="goal-section">
-                    <h4>Current Goal</h4>
-                    <div id="currentGoal" class="goal-display">
-                        <p>No active goal. Set one below!</p>
+                    <h4>Focus Session</h4>
+                    <div id="focusDisplay" class="goal-display">
+                        <p>No focus session running.</p>
                     </div>
-                    
+
                     <div class="goal-setup">
-                        <select id="goalType">
-                            <option value="focus">Focus Session</option>
-                            <option value="learning">Learning Time</option>
-                            <option value="limit">Limit Distractions</option>
-                        </select>
-                        <input type="number" id="goalDuration" placeholder="Minutes" min="5" max="480">
-                        <button id="setGoalBtn" class="action-btn primary">Set Goal</button>
+                        <label for="focusMinutes" class="sr-only">Minutes</label>
+                        <input type="number" id="focusMinutes" placeholder="Minutes" min="5" max="480" value="25">
+                        <button id="startFocusBtn" class="action-btn primary">Start Focus Session</button>
                     </div>
+                    <p class="privacy-note">The timer keeps running when the popup is closed. When it ends you get a notification
+                        (if enabled in Full Settings) saying how many minutes went to learning/productive sites.</p>
                 </div>
 
                 <div class="achievements">
@@ -164,17 +165,6 @@
                 <h3>Settings</h3>
 
                 <div class="settings-section">
-                    <h4>Notion Integration</h4>
-                    <div class="notion-setup">
-                        <input type="password" id="notionApiKey" placeholder="Notion API Key" class="settings-input">
-                        <input type="text" id="notionDatabaseId" placeholder="Database ID" class="settings-input">
-                        <button id="testNotionBtn" class="action-btn secondary">Test Connection</button>
-                        <button id="saveNotionBtn" class="action-btn primary">Save Settings</button>
-                    </div>
-                    <div id="notionStatus" class="status-message"></div>
-                </div>
-
-                <div class="settings-section">
                     <h4>Appearance</h4>
                     <div class="theme-settings">
                         <label class="setting-item">
@@ -191,8 +181,10 @@
 
                 <div class="settings-section">
                     <h4>Data Management</h4>
+                    <p class="privacy-note">The export contains your activity, summaries and settings, but never your API keys.
+                        Clear All Data deletes activity, summaries and category changes; settings are kept.</p>
                     <div class="data-actions">
-                        <button id="exportDataBtn" class="action-btn secondary">📤 Export All Data</button>
+                        <button id="exportDataBtn" class="action-btn secondary">📤 Export Data (JSON)</button>
                         <button id="clearDataBtn" class="action-btn danger">🗑️ Clear All Data</button>
                     </div>
                 </div>
@@ -201,7 +193,7 @@
                     <h4>About</h4>
                     <p class="about-text">Digital Digital Diary v1.0<br>
                     Built for CS50x 2025 Final Project<br>
-                    <a href="#" id="openOptionsBtn">Open Full Settings</a></p>
+                    <a href="options.html" id="openOptionsBtn">Open Full Settings</a> (Notion, AI summaries, tracking, streak goal, notifications, data retention)</p>
                 </div>
             </div>
         </main>

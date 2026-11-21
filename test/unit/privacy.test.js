@@ -158,8 +158,8 @@ test('no innerHTML / outerHTML / insertAdjacentHTML / document.write anywhere in
 
 test('network calls exist only in the Gemini and Notion code', () => {
   const withFetch = extensionSourceFiles().filter(f => /\bfetch(Fn)?\(/.test(read(f))).sort();
-  // Notion calls are still in the popup/options scripts at this point.
-  assert.deepEqual(withFetch, ['lib/gemini.js', 'options.js', 'script.js']);
+  // script.js / options.js only pass `fetch` into the Notion helpers.
+  assert.deepEqual(withFetch, ['lib/gemini.js', 'lib/notion.js']);
 });
 
 test('HTML and CSS load nothing from the network (no web fonts, CDNs or remote scripts)', () => {

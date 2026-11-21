@@ -11,6 +11,7 @@ import puppeteer from 'puppeteer';
 import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -251,19 +252,215 @@ async function main() {
     record('service worker: zero errors', sw.errors.length === 0 && logErrors.length === 0,
       [...sw.errors, ...logErrors].slice(0, 3).join(' | '));
 
-    // 7. Popup screenshots (after some activity exists).
+    // 7. Seed realistic data through the extension's own storage API so the
+    //    popup has something to show (independent of OS idle state).
+    await popup.evaluate(async () => {
+      const now = Date.now();
+      const day = 86400000;
+      const start = new Date(); start.setHours(9, 0, 0, 0);
+      const t = start.getTime();
+      const mk = (id, domain, when, timeSpent) => ({ id, domain, url: `https://${domain}/`, when, timeSpent });
+      const activityLog = [
+        mk('s1', 'en.wikipedia.org', t, 2400), mk('s2', 'youtube.com', t + 2500000, 1500),
+        mk('s3', 'github.com', t + 4100000, 1800), mk('s4', 'reddit.com', t + 6000000, 600),
+        mk('s5', 'docs.google.com', t - day, 2400), mk('s6', 'wikipedia.org', t - 2 * day, 2000),
+        mk('old', 'example.com', now - 400 * day, 60)
+      ];
+      await chrome.storage.local.set({
+        activityLog,
+        summaries: [{ url: 'https://en.wikipedia.org/wiki/Habit', title: 'Habit - Wikipedia', summary: '• Habits form through repetition.\n• Cues trigger routines. <b>not bold</b>', time: t + 1000 }],
+        geminiApiKey: 'SECRET-GEMINI', notionApiKey: 'SECRET-NOTION'
+      });
+    });
+
+    // 8. Popup screenshots.
     fs.mkdirSync(SHOTS, { recursive: true });
     const shotSink = { errors: [], requests: [] };
     const shotPage = await openExtensionPage(browser, `chrome-extension://${extensionId}/ui.html`, shotSink, { width: 450, height: 600 });
     for (const tab of ['home', 'reports', 'goals', 'settings']) {
       await shotPage.click(`.nav-tab[data-tab="${tab}"]`);
       await sleep(400);
+      const active = await shotPage.$eval('.tab-pane.active', el => el.id);
+      if (active !== tab) record(`nav tab "${tab}" shows its pane`, false, `active pane: ${active}`);
       await shotPage.screenshot({ path: path.join(SHOTS, `popup-${tab}.png`) });
+      if (tab === 'home' || tab === 'reports') {
+        await shotPage.evaluate(() => { document.querySelector('.tab-content').scrollTop = 420; });
+        await sleep(200);
+        await shotPage.screenshot({ path: path.join(SHOTS, `popup-${tab}-scrolled.png`) });
+        await shotPage.evaluate(() => { document.querySelector('.tab-content').scrollTop = 0; });
+      }
     }
-    record('popup screenshots saved', true, path.relative(ROOT, SHOTS));
-    record('popup with data: zero console errors while switching tabs', shotSink.errors.length === 0, shotSink.errors.slice(0, 3).join(' | '));
+    record('popup screenshots saved (4 nav tabs each show their pane)', true, path.relative(ROOT, SHOTS));
+
+    // 9. Every popup control.
+    const p = shotPage;
+    const dialogs = [];
+    let dialogAction = 'accept';
+    p.on('dialog', async d => { dialogs.push(d.message()); await (dialogAction === 'accept' ? d.accept() : d.dismiss()); });
+    const downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dd-e2e-'));
+    const cdp = await browser.target().createCDPSession();
+    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir, eventsEnabled: true });
+    const waitForDownload = async (re) => {
+      for (let i = 0; i < 40; i++) {
+        const f = fs.readdirSync(downloadDir).find(n => re.test(n) && !n.endsWith('.crdownload'));
+        if (f) return path.join(downloadDir, f);
+        await sleep(250);
+      }
+      return null;
+    };
+    const store = keys => p.evaluate(k => chrome.storage.local.get(k), keys);
+
+    await p.click('.nav-tab[data-tab="home"]'); await sleep(300);
+    const summaryHtml = await p.$eval('#todayReport', el => ({ text: el.textContent, bold: el.querySelectorAll('b').length }));
+    record('home: AI summary shown as text (markup in it is not rendered)', summaryHtml.text.includes('<b>not bold</b>') && summaryHtml.bold === 0);
+    const scoreBefore = await p.$eval('#productivityScore', el => el.textContent);
+    await p.select('select[aria-label="Category for youtube.com"]', 'learning');
+    await sleep(800);
+    const ov = await store('categoryOverrides');
+    const scoreAfter = await p.$eval('#productivityScore', el => el.textContent);
+    record('home: category select saves an override and updates the score',
+      ov.categoryOverrides?.['youtube.com'] === 'learning' && scoreAfter !== scoreBefore, `score ${scoreBefore} → ${scoreAfter}`);
+
+    const themeBefore = (await store('theme')).theme || 'dark';
+    await p.click('#themeToggle'); await sleep(300);
+    const themeAfter = (await store('theme')).theme;
+    const attr = await p.evaluate(() => document.documentElement.getAttribute('data-theme'));
+    record('header: theme toggle switches and saves the theme', themeAfter !== themeBefore && attr === themeAfter, `${themeBefore} → ${themeAfter}`);
+    await p.click('#themeToggle'); await sleep(200);
+
+    dialogAction = 'dismiss';
+    await p.evaluate(() => chrome.storage.local.remove(['notionApiKey']));
+    await sleep(300);
+    const reqBeforeNotion = shotSink.requests.length;
+    await p.click('#exportNotionBtn'); await sleep(400);
+    record('home: Export to Notion without settings asks to open settings and sends nothing',
+      /Notion is not set up/.test(dialogs.at(-1) || '') && shotSink.requests.slice(reqBeforeNotion).filter(u => !isExtUrl(u, extensionId)).length === 0, dialogs.at(-1));
+    await p.evaluate(() => chrome.storage.local.set({ notionApiKey: 'SECRET-NOTION' }));
+    dialogAction = 'accept';
+
+    await p.click('#startGoalBtn'); await sleep(300);
+    const focusTab = await p.evaluate(() => ({ pane: document.querySelector('.tab-pane.active').id, focused: document.activeElement.id }));
+    record('home: Focus Session button opens the focus panel', focusTab.pane === 'goals' && focusTab.focused === 'focusMinutes', JSON.stringify(focusTab));
+
+    // Focus: invalid, start, stop
+    await p.$eval('#focusMinutes', el => { el.value = '2'; });
+    await p.click('#startFocusBtn'); await sleep(500);
+    record('goals: focus session shorter than 5 min is refused', /between 5 and 480/.test(dialogs.at(-1) || ''), dialogs.at(-1));
+    await p.$eval('#focusMinutes', el => { el.value = '5'; });
+    await p.click('#startFocusBtn'); await sleep(800);
+    const alarm = await p.evaluate(() => chrome.alarms.get('focusEnd'));
+    const focusText = await p.$eval('#focusDisplay', el => el.textContent);
+    record('goals: Start Focus Session creates a worker alarm (survives closing the popup) and shows a countdown',
+      !!alarm && Math.abs(alarm.scheduledTime - Date.now() - 300000) < 10000 && /remaining/.test(focusText), focusText.trim().slice(0, 60));
+    await p.click('#stopFocusBtn'); await sleep(800);
+    const afterStop = await p.evaluate(async () => ({ alarm: await chrome.alarms.get('focusEnd'), f: (await chrome.storage.local.get('focusSession')).focusSession }));
+    record('goals: Stop Session clears the alarm', !afterStop.alarm && afterStop.f?.stopped === true);
+
+    // Reports
+    await p.click('.nav-tab[data-tab="reports"]'); await sleep(300);
+    await p.select('#dateRange', 'custom'); await sleep(200);
+    const customVisible = await p.$eval('#customDateRange', el => !el.classList.contains('hidden'));
+    await p.$eval('#startDate', el => { el.value = '2030-01-10'; el.dispatchEvent(new Event('change')); });
+    await p.$eval('#endDate', el => { el.value = '2030-01-01'; el.dispatchEvent(new Event('change')); });
+    await sleep(200);
+    const invalid = await p.evaluate(() => ({ err: document.querySelector('#rangeError').textContent, disabled: document.querySelector('#downloadReportBtn').disabled }));
+    record('reports: Custom Range shows date pickers and rejects start after end', customVisible && /on or before/.test(invalid.err) && invalid.disabled, invalid.err);
+    const todayKey = await p.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+    const twoDaysAgo = await p.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - 2); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+    await p.$eval('#startDate', (el, v) => { el.value = v; el.dispatchEvent(new Event('change')); }, twoDaysAgo);
+    await p.$eval('#endDate', (el, v) => { el.value = v; el.dispatchEvent(new Event('change')); }, todayKey);
+    await sleep(300);
+    const reportText = await p.$eval('#reportContent', el => el.textContent);
+    record('reports: valid custom range renders that range', /Custom Range Summary/.test(reportText) && /Days Active: 3/.test(reportText), reportText.slice(0, 80));
+    await p.click('#downloadReportBtn');
+    const reportFile = await waitForDownload(/^digital-diary-report-custom-.*\.txt$/);
+    const reportBody = reportFile ? fs.readFileSync(reportFile, 'utf8') : '';
+    record('reports: "Download report (.txt)" downloads a .txt report for the selected range (local date in name)',
+      !!reportFile && /DIGITAL DIARY REPORT/.test(reportBody) && /Period: Custom Range/.test(reportBody) && path.basename(reportFile).includes(todayKey),
+      reportFile ? path.basename(reportFile) : 'no file');
+    await p.evaluate(() => chrome.storage.local.get('activityLog').then(({ activityLog }) =>
+      chrome.storage.local.set({ activityLog: [...activityLog, { id: 'r1', domain: 'coursera.org', url: 'https://coursera.org/', when: Date.now() - 3600000, timeSpent: 900 }] })));
+    await p.click('#refreshReportBtn'); await sleep(500);
+    record('reports: Refresh Data re-reads storage', /coursera|learning/.test(await p.$eval('#reportContent', el => el.textContent)));
+
+    // Settings tab
+    await p.click('.nav-tab[data-tab="settings"]'); await sleep(300);
+    await p.click('input[name="theme"][value="auto"]'); await sleep(300);
+    record('settings: theme radio "Auto (System)" is saved as auto', (await store('theme')).theme === 'auto');
+    await p.click('#exportDataBtn');
+    const exportFile = await waitForDownload(/^digital-diary-export-.*\.json$/);
+    const exported = exportFile ? JSON.parse(fs.readFileSync(exportFile, 'utf8')) : {};
+    record('settings: Export Data (JSON) downloads data without API keys',
+      !!exportFile && Array.isArray(exported.activityLog) && !('geminiApiKey' in exported) && !('notionApiKey' in exported));
+    const optionsOpened = browser.waitForTarget(t => t.url() === `chrome-extension://${extensionId}/options.html`, { timeout: 5000 }).then(() => true, () => false);
+    await p.click('#openOptionsBtn');
+    record('settings: Open Full Settings opens the options page', await optionsOpened);
+    await p.bringToFront(); // dialogs in a background tab would stall
+    dialogAction = 'accept';
+    await p.click('#clearDataBtn'); await sleep(800);
+    const afterClear = await store(null);
+    record('settings: Clear All Data deletes activity/summaries/overrides and keeps settings',
+      /permanently deletes/.test(dialogs.at(-1) || '') && !afterClear.activityLog && !afterClear.summaries && !afterClear.categoryOverrides && afterClear.theme === 'auto' && afterClear.geminiApiKey === 'SECRET-GEMINI');
+    record('popup controls: zero console errors', shotSink.errors.length === 0, shotSink.errors.slice(0, 3).join(' | '));
     const late = shotSink.requests.filter(u => !isExtUrl(u, extensionId));
-    record('popup with data: zero network requests', late.length === 0, late.slice(0, 3).join(' | '));
+    record('popup controls: zero network requests', late.length === 0, late.slice(0, 3).join(' | '));
+
+    // 10. Every options-page control.
+    const oSink = { errors: [], requests: [] };
+    const o = await openExtensionPage(browser, `chrome-extension://${extensionId}/options.html`, oSink);
+    o.on('dialog', d => d.accept());
+    const setField = async (sel, value) => {
+      await o.$eval(sel, (el, v) => {
+        if (el.type === 'checkbox') el.checked = v; else el.value = v;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
+    };
+    await setField('#notionApiKey', 'ntn_test');
+    await setField('#notionDatabaseId', 'https://www.notion.so/x/0123456789abcdef0123456789abcdef');
+    await setField('#enableSummaries', true);
+    await setField('#geminiApiKey', 'gem-key');
+    await setField('#minTrackingTime', '999');
+    await setField('#excludedDomains', 'localhost\nmybank.com');
+    await setField('#streakGoal', '45');
+    await setField('#enableNotifications', false);
+    await setField('#dataRetention', '30');
+    await sleep(900);
+    const saved = await o.evaluate(() => chrome.storage.local.get(null));
+    const expectSaved = { notionApiKey: 'ntn_test', enableSummaries: true, geminiApiKey: 'gem-key', minTrackingTime: 60, streakGoal: 45, enableNotifications: false, dataRetention: 30 };
+    const mismatched = Object.entries(expectSaved).filter(([k, v]) => saved[k] !== v).map(([k]) => `${k}=${saved[k]}`);
+    record('options: every field auto-saves (with clamping)',
+      mismatched.length === 0 && saved.excludedDomains.join(',') === 'localhost,mybank.com' && saved.notionDatabaseId.includes('0123456789abcdef'),
+      mismatched.join(', ') || 'all saved');
+    await setField('#notionApiKey', '');
+    await o.click('#testNotionConnection'); await sleep(300);
+    record('options: Test Connection validates input locally (no request without a key)',
+      /Enter your Notion API key/.test(await o.$eval('#notionStatus', el => el.textContent)) && oSink.requests.filter(u => !isExtUrl(u, extensionId)).length === 0);
+    await o.$eval('#notionApiKey', el => { el.value = 'ntn_saved'; });
+    await o.click('#saveNotionSettings'); await sleep(300);
+    record('options: Save Settings (Notion) stores the key', (await o.evaluate(() => chrome.storage.local.get('notionApiKey'))).notionApiKey === 'ntn_saved');
+    await o.evaluate(() => chrome.storage.local.set({ activityLog: [
+      { id: 'o', domain: 'a.com', url: 'https://a.com', when: Date.now() - 40 * 86400000, timeSpent: 5 },
+      { id: 'n', domain: 'a.com', url: 'https://a.com', when: Date.now(), timeSpent: 5 }] }));
+    await o.click('#clearOldData'); await sleep(800);
+    const oldMsg = await o.$eval('#dataStatus', el => el.textContent);
+    const remaining = (await o.evaluate(() => chrome.storage.local.get('activityLog'))).activityLog.map(e => e.id);
+    record('options: Clear Old Data Now deletes entries older than the retention period', /Deleted 1 visits/.test(oldMsg) && remaining.join() === 'n', oldMsg);
+    await o.click('#exportAllData');
+    const optExport = await waitForDownload(/^digital-diary-export-.*\.json$/);
+    record('options: Export Data (JSON) works', !!optExport);
+    await o.click('#resetSettings'); await sleep(800);
+    const afterReset = await o.evaluate(() => chrome.storage.local.get(null));
+    record('options: Reset All Settings restores defaults and keeps activity',
+      afterReset.streakGoal === undefined && afterReset.geminiApiKey === undefined && afterReset.activityLog?.length === 1 &&
+      (await o.$eval('#streakGoal', el => el.value)) === '30');
+    const links = await o.evaluate(() => [document.querySelector('#viewSource').href, document.querySelector('#reportIssue').href]);
+    record('options: About links point to the real repository', links[0] === 'https://github.com/Arjav1512/CS50-FinalProject' && links[1].endsWith('/issues'), links.join(' '));
+    const stats = await o.$eval('#totalSites', el => el.textContent);
+    record('options: statistics are shown', stats === '1', `sites: ${stats}`);
+    await o.screenshot({ path: path.join(SHOTS, 'options.png'), fullPage: true });
+    record('options page: zero console errors after use', oSink.errors.length === 0, oSink.errors.slice(0, 3).join(' | '));
+    record('options page: zero network requests after use', oSink.requests.filter(u => !isExtUrl(u, extensionId)).length === 0);
+    fs.rmSync(downloadDir, { recursive: true, force: true });
   } catch (e) {
     console.log('targets at failure:', browser.targets().map(t => `${t.type()} ${t.url().slice(0, 70)}`));
     record('e2e run completed', false, e.stack?.split('\n').slice(0, 2).join(' '));

@@ -203,6 +203,17 @@ test('a long gap between flushes (computer asleep) is not counted', async () => 
   assert.ok(total <= 125, `counted ${total}s`);
 });
 
+test('the sleep rule is the same whether the session ends by flush or by a tab switch', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  await chrome._activate(1);
+  advance(60);
+  await chrome._fireAlarm(ALARM_FLUSH);
+  advance(3600);                         // asleep; first event after waking is a tab switch
+  await chrome._activate(2);
+  assert.ok(secondsFor(await getLog(chrome), 'youtube.com') <= 125);
+});
+
 test('incognito tabs and short visits are not logged', async () => {
   const chrome = setupBrowser();
   chrome._addTab({ id: 9, url: 'https://secret.example/', incognito: true });

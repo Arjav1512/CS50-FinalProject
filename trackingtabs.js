@@ -10,7 +10,13 @@ const tracker = registerTracker(chrome);
 // Messages from the extension's own pages (popup, options). There are no
 // content scripts, and messages from anywhere else are ignored.
 const messageHandlers = {
-  summarizePage: msg => summarizePage(chrome, tracker, msg.tabId)
+  summarizePage: msg => summarizePage(chrome, tracker, msg.tabId),
+  startFocus: msg => tracker.startFocus(msg.minutes),
+  stopFocus: () => tracker.stopFocus(),
+  setCategory: msg => tracker.setCategory(msg.domain, msg.category),
+  clearOldData: () => tracker.applyRetentionNow().then(r => ({ ok: true, ...r })),
+  clearAllData: () => tracker.clearAllData(),
+  resetSettings: () => tracker.resetSettings()
 };
 
 const fromOwnPage = sender => sender.id === chrome.runtime.id &&
