@@ -9,7 +9,7 @@ Digital Diary is a Chrome extension (Manifest V3, plain JavaScript, no build ste
 
 ## What it does
 
-- **Tracks time on the active tab** of the focused Chrome window and logs it per site. Time stops counting when you switch away from Chrome, lock the screen, or stop using the computer for 60 seconds.
+- **Tracks time on the active tab** of the focused Chrome window and logs it per site. Time stops counting when you switch away from Chrome, lock the screen, or stop using the computer for 2 minutes, unless the tab is playing sound (a video or podcast keeps counting).
 - **Categorises sites** (learning, productive, entertainment, social media, shopping, misc) from a built-in list. `www.` and `m.` are ignored and subdomains fall back to their parent (`en.wikipedia.org` → `wikipedia.org`). **You can change any site's category** from the popup's Top Sites list; your choice is used everywhere.
 - **Productivity score** (0–100) for today, weighted by time per category.
 - **Streaks**: consecutive days on which your learning/productive time reaches your daily goal (default 30 minutes).
@@ -83,7 +83,7 @@ The links on the options page (Notion integrations, Google AI Studio, this GitHu
 | `tabs` | Read the URL of the active tab to know which site you are on (tracking) |
 | `storage` | Save your activity, summaries and settings locally; keep the running visit in session storage so it survives the service worker being stopped |
 | `alarms` | Minute-by-minute saving of the current visit, daily automatic deletion of old data, and the focus-session timer |
-| `idle` | Stop counting when you are away from the computer (60 s) or the screen is locked |
+| `idle` | Stop counting when you are away from the computer (2 minutes without input, unless the tab is playing sound) or the screen is locked |
 | `notifications` | Tell you when a focus session ends (can be turned off) |
 | `activeTab` + `scripting` | Read the text of **only the current tab, only when you click Summarize** (no access to other sites) |
 | Host `https://generativelanguage.googleapis.com/*` | Send the page text to Gemini when you click Summarize |
@@ -95,8 +95,14 @@ There are no content scripts and no web-accessible resources.
 
 - The service worker (`trackingtabs.js` → `lib/tracker.js`) times the active tab of the focused window. The visit being timed is kept in `chrome.storage.session`, so Chrome stopping the worker after ~30 seconds of inactivity loses nothing.
 - Every minute an alarm writes the elapsed time into the log (the same entry is updated), so a crash loses at most about a minute.
-- Switching tabs, navigating, closing a tab, leaving Chrome, going idle (60 s without input, which is not counted), locking the screen, or adding the site to Excluded Domains ends the visit. Tabs that become active while Chrome is in the background are not timed, and the minute alarm re-checks that the timed tab is still the focused window's active tab. If the computer was asleep (no alarm for over 3 minutes), the sleep time is not counted.
+- Switching tabs, navigating, closing a tab, leaving Chrome, going idle (see below), locking the screen, or adding the site to Excluded Domains ends the visit. Tabs that become active while Chrome is in the background are not timed, and the minute alarm re-checks that the timed tab is still the focused window's active tab. If the computer was asleep (no alarm for over 3 minutes), the sleep time is not counted.
 - All storage writes go through one queue, so events that happen at the same moment cannot overwrite each other.
+
+### How idle works
+- Chrome reports **idle** when there has been no keyboard or mouse input for **120 seconds**. If the tracked tab is not playing sound, the visit ends, and the end time is moved back by those 120 seconds, so time spent away is never counted. (A longer interval just avoids cutting off slow reading; it does not add time when you walk away.)
+- If the tracked tab **is playing sound** (`tab.audible`, e.g. a YouTube video or a podcast), the visit keeps counting while you are idle. The minute alarm re-checks the tab: once the sound stops and you are still idle, the visit ends at that moment.
+- **Locking the screen always ends the visit**, even if sound is playing.
+- When you start using the computer again, tracking resumes on the active tab.
 
 ### Upgrading from version 1.0
 Version 1.0 stored dates as text (e.g. "22/11/2026, 3:45:12 pm"), which broke in non-US locales. On update, the extension converts them to numbers once (US, UK, Indian and other common formats). 1.0 stored the moment a visit *ended*; converted entries store when it *started* (end minus duration), like new entries. Domains are normalized (`www.youtube.com` → `youtube.com`) and the old per-entry `category` field is dropped, because categories are now worked out when displayed (so your category changes apply to old visits too). Any entry whose date cannot be read is **kept** in storage and in exports, not deleted, and the count is logged; such entries are not counted in reports, streaks or statistics, because their day is unknown. Because 1.0 never deleted anything automatically, upgraded profiles start with retention set to **Keep forever**; choose a period in Full Settings if you want automatic deletion. AI summaries are switched off on upgrade, because they now work differently (on click only).
@@ -111,7 +117,7 @@ npm run test:e2e     # loads the unpacked extension in Chrome for Testing
 
 - **Unit tests** (`test/unit/`) cover tracking across service-worker restarts, focus loss and regain, idle and lock, simultaneous session ends, hostname normalization and categories, user overrides, migration of en-US/en-GB/en-IN dates, streaks with gaps, retention, focus sessions, Notion request building, Gemini request building, and privacy guards (no `innerHTML`, `fetch` only in the two API modules, every manifest permission used).
 - **End-to-end** (`test/e2e/run.js`) loads this folder in Chrome. It checks for console errors and network requests, exercises every popup and options control (including downloads), stops the service worker mid-visit, and saves screenshots to `docs/screenshots/`.
-- `chrome.idle` reports the operating system's real input state. If nobody has touched the keyboard or mouse for 60 seconds, the extension correctly stops tracking, so the two e2e checks that need tracking are reported as **SKIP** (never as PASS). Run the e2e suite while using the computer to include them.
+- `chrome.idle` reports the operating system's real input state. If nobody has touched the keyboard or mouse for 120 seconds, the extension correctly stops tracking (the test pages play no sound), so the two e2e checks that need tracking are reported as **SKIP** (never as PASS). Run the e2e suite while using the computer to include them.
 
 Icons are generated by `node scripts/make-icons.js` (no dependencies).
 
@@ -138,7 +144,7 @@ Icons are generated by `node scripts/make-icons.js` (no dependencies).
 - Categories come from a built-in list of 62 sites plus your own changes; everything else is "misc".
 - `chrome.storage.local` holds about 10 MB. Each visit takes roughly 150–300 bytes (the full page URL is stored), so this is on the order of 40,000+ visits. With retention set to "Keep forever" (the default after upgrading from 1.0) a very heavy user could eventually fill it; writes would then fail (logged in the service worker console) and tracking would stop saving. Choose a retention period to avoid this.
 - A visit is counted on the day it started, so a visit across midnight counts entirely toward the first day.
-- Idle detection uses keyboard/mouse input: watching a long video without touching anything stops counting after 60 seconds.
+- Idle detection uses keyboard/mouse input plus whether the tab is playing sound: a muted video watched without touching anything stops counting after 2 minutes; a silent page read for more than 2 minutes without scrolling is cut off (the idle 2 minutes are not counted).
 - Summaries only use visible page text (no video transcripts), up to 3,000 characters.
 - Only the focused window's active tab is tracked; background audio or a second monitor's window is not.
 - "Summarize this page" and Notion export need a real API key / database, so they are not covered by the automated tests beyond request building and refusal paths.

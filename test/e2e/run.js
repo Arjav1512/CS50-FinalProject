@@ -30,11 +30,12 @@ function skip(name, reason) {
 }
 
 // chrome.idle reports the operating system's input idleness. On an unattended
-// machine (no keyboard/mouse input for 60 s) Chrome correctly reports "idle" and
+// machine (no keyboard/mouse input for 120 s) Chrome correctly reports "idle" and
 // the extension correctly stops counting time, so tracking checks cannot run.
 // They are reported as SKIP (never as PASS) in that case.
-const IDLE_REASON = 'the OS reports no user input for 60 s (chrome.idle = idle), so the extension correctly does not track; rerun while using the computer';
-const idleState = page => page.evaluate(() => chrome.idle.queryState(60));
+const IDLE_REASON = 'the OS reports no user input for 120 s (chrome.idle = idle), so the extension correctly does not track; rerun while using the computer';
+// Same threshold as IDLE_DETECTION_SECONDS in lib/tracker.js.
+const idleState = page => page.evaluate(() => chrome.idle.queryState(120));
 
 // ---------- local web server for "normal pages" ----------
 function startServer() {
@@ -207,6 +208,15 @@ async function main() {
     await pageD.goto(site('wake.test'), { waitUntil: 'load' });
     await activateTab(popup, site('wake.test'));
     const elapsedC = (Date.now() - tC0) / 1000;   // real time spent on the docs page
+    // Puppeteer's DevTools connection auto-attaches to the restarting worker and
+    // holds it paused ("waiting for debugger") until a client resumes it, which
+    // delayed the event by ~15 s in earlier runs. Resume it right away, so the
+    // worker starts as it would in a normal browser.
+    const restarted = browser.targets().find(t => t.type() === 'service_worker' && t.url().startsWith(`chrome-extension://${extensionId}/`));
+    if (restarted) {
+      const resume = await restarted.createCDPSession().catch(() => null);
+      await resume?.send('Runtime.runIfWaitingForDebugger').catch(() => {});
+    }
     // Wait for the restarted worker to process the activation.
     let entryC = null;
     const tWake = Date.now();
