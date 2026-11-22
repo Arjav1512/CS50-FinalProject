@@ -33,7 +33,8 @@
 }
 
 body {
-  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* System fonts only: the extension makes no font (or any other) network requests. */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
@@ -438,7 +439,6 @@ body {
   flex-wrap: wrap;
 }
 
-.goal-setup select,
 .goal-setup input {
   padding: 8px 12px;
   border: 1px solid var(--border);
@@ -446,10 +446,6 @@ body {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   font-size: 0.875rem;
-}
-
-.goal-setup select {
-  flex: 2;
 }
 
 .goal-setup input {
@@ -629,40 +625,6 @@ body {
   font-size: 0.875rem;
 }
 
-.category-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  margin-left: 8px;
-}
-
-.category-entertainment {
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--danger);
-}
-
-.category-learning {
-  background: rgba(16, 185, 129, 0.1);
-  color: var(--success);
-}
-
-.category-productive {
-  background: rgba(79, 70, 229, 0.1);
-  color: var(--accent-primary);
-}
-
-.category-social {
-  background: rgba(245, 158, 11, 0.1);
-  color: var(--warning);
-}
-
-.category-misc {
-  background: rgba(107, 114, 128, 0.1);
-  color: var(--text-muted);
-}
-
 /* Responsive Design */
 @media (max-width: 400px) {
   .container {
@@ -815,4 +777,67 @@ select:focus {
   border-radius: 8px;
   padding: 16px;
   border: 1px solid var(--border);
+}
+
+/* AI summary (page text → Google Gemini, only on click) */
+.summarize-section {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.privacy-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.summary-item {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.summary-item strong {
+  font-size: 0.875rem;
+  display: block;
+}
+
+.summary-item p {
+  margin: 4px 0 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.custom-date-range label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  align-self: center;
+}
+
+.category-select {
+  margin-left: 6px;
+  padding: 1px 4px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.focus-result {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }

@@ -1,29 +1,38 @@
 {
   "manifest_version": 3,
-  "name": "Daily Digital Diary",
-  "version": "1.0",
-  "description": "Tracks what you're doing online so you can stop crying about lost time",
-  "permissions": ["tabs", "history", "storage", "activeTab", "identity"],
-  "background": {
-    "service_worker": "trackingtabs.js"
+  "name": "Digital Diary",
+  "version": "1.1.0",
+  "description": "See where your time online goes: time per site and category, streaks, focus sessions and reports. Your data stays in your browser.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
-  "action": {
-    "default_popup": "ui.html"
-  },
-  "options_page": "options.html",
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["dataextraction.js"]
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["script.js", "style.css", "ui.html", "options.html", "utils.js"],
-      "matches": ["<all_urls>"]
-    }
+  "permissions": [
+    "tabs",
+    "storage",
+    "alarms",
+    "idle",
+    "notifications",
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
-    "https://api.notion.com/*"
-  ]
+    "https://api.notion.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "trackingtabs.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "ui.html",
+    "default_title": "Digital Diary",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "options_page": "options.html"
 }

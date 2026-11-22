@@ -120,6 +120,18 @@
             display: block;
         }
         
+        .options-section .hint {
+            display: block;
+            margin-top: 8px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        a.action-btn {
+            text-decoration: none;
+            display: inline-block;
+        }
+
         .stat-label {
             font-size: 0.875rem;
             color: var(--text-secondary);
@@ -131,124 +143,112 @@
     <div class="options-container">
         <div class="options-header">
             <h1>📱 Digital Diary Settings</h1>
-            <p>Configure your digital tracking preferences and integrations</p>
+            <p>Changes are saved automatically.</p>
+            <div id="saveStatus" class="status-message" aria-live="polite"></div>
         </div>
 
         <!-- Notion Integration -->
         <div class="options-section">
             <h2>🔗 Notion Integration</h2>
-            <p>Connect your Notion workspace to automatically export daily summaries.</p>
-            
+            <p>Used only when you click <strong>Export to Notion</strong> in the popup. Export creates one page with today's summary in the
+               database below. The page title goes into the database's title column (for a new database that is "Name");
+               "Date" and "Productivity Score" are filled only if your database has properties with those names.</p>
+
             <div class="form-group">
                 <label for="notionApiKey">Notion API Key</label>
-                <input type="password" id="notionApiKey" placeholder="secret_...">
-                <small>Get your API key from <a href="https://www.notion.so/my-integrations" target="_blank">Notion Integrations</a></small>
+                <input type="password" id="notionApiKey" placeholder="secret_... or ntn_..." autocomplete="off">
+                <small>Create an internal integration at <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener">Notion Integrations</a>,
+                    then share your database with it (••• → Connections).</small>
             </div>
-            
+
             <div class="form-group">
                 <label for="notionDatabaseId">Database ID</label>
-                <input type="text" id="notionDatabaseId" placeholder="Database ID from Notion URL">
-                <small>Copy the database ID from your Notion database URL</small>
+                <input type="text" id="notionDatabaseId" placeholder="Database ID or the database's URL" autocomplete="off">
+                <small>Paste the database URL or the 32-character ID from it.</small>
             </div>
-            
-            <div class="form-group">
-                <label for="notionTemplate">Export Template</label>
-                <textarea id="notionTemplate" placeholder="Customize how your data appears in Notion...">Daily Digital Activity Summary
 
-Total Time: {totalTime}
-Productivity Score: {productivityScore}/100
-
-Categories:
-{categoryBreakdown}
-
-Key Takeaways:
-{summaries}</textarea>
-                <small>Use placeholders like {totalTime}, {productivityScore}, etc.</small>
-            </div>
-            
-            <div class="checkbox-group">
-                <input type="checkbox" id="autoExportNotion">
-                <label for="autoExportNotion">Automatically export to Notion daily</label>
-            </div>
-            
             <div class="button-group">
                 <button id="testNotionConnection" class="action-btn secondary">Test Connection</button>
                 <button id="saveNotionSettings" class="action-btn primary">Save Settings</button>
             </div>
-            
+
             <div id="notionStatus" class="status-message"></div>
+        </div>
+
+        <!-- AI summaries -->
+        <div class="options-section">
+            <h2>✨ AI Summaries (Google Gemini)</h2>
+            <p>Off by default. When on, the popup's <strong>Summarize this page</strong> button sends the text of the current tab
+               (up to 3,000 characters, only when you click it) to Google Gemini. Excluded domains are never summarized.</p>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableSummaries">
+                <label for="enableSummaries">Enable "Summarize this page"</label>
+            </div>
+
+            <div class="form-group">
+                <label for="geminiApiKey">Gemini API Key</label>
+                <input type="password" id="geminiApiKey" placeholder="Paste your key from Google AI Studio" autocomplete="off">
+                <small>Get a key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>. It is stored only in this browser (chrome.storage.local) and sent only to Google, in a request header.</small>
+            </div>
         </div>
 
         <!-- Tracking Preferences -->
         <div class="options-section">
             <h2>📊 Tracking Preferences</h2>
-            
+
             <div class="form-group">
                 <label for="minTrackingTime">Minimum Tracking Time (seconds)</label>
-                <input type="number" id="minTrackingTime" value="5" min="1" max="60">
-                <small>Only track sites visited for at least this many seconds</small>
+                <input type="number" id="minTrackingTime" min="1" max="60">
+                <small>Visits shorter than this are not logged (1–60).</small>
             </div>
-            
+
             <div class="form-group">
                 <label for="excludedDomains">Excluded Domains</label>
-                <textarea id="excludedDomains" placeholder="example.com&#10;private-site.com">chrome://
-chrome-extension://
-localhost</textarea>
-                <small>One domain per line. These sites won't be tracked.</small>
-            </div>
-            
-            <div class="checkbox-group">
-                <input type="checkbox" id="trackIncognito">
-                <label for="trackIncognito">Track incognito browsing</label>
-            </div>
-            
-            <div class="checkbox-group">
-                <input type="checkbox" id="enableSummaries" checked>
-                <label for="enableSummaries">Enable AI summaries (requires Gemini API key)</label>
+                <textarea id="excludedDomains" placeholder="example.com&#10;mybank.com"></textarea>
+                <small>One per line. A domain also excludes its subdomains (example.com excludes mail.example.com). Excluded sites are
+                    never tracked and never summarized. Browser pages (chrome://, files) and incognito tabs are never tracked.</small>
             </div>
         </div>
 
-        <!-- Gamification Settings -->
+        <!-- Streaks and focus -->
         <div class="options-section">
-            <h2>🎮 Gamification</h2>
-            
+            <h2>🎮 Streaks &amp; Focus Sessions</h2>
+
             <div class="form-group">
-                <label for="streakGoal">Daily Streak Goal (minutes of productive time)</label>
-                <input type="number" id="streakGoal" value="30" min="5" max="480">
-                <small>Minimum productive time needed to maintain streak</small>
+                <label for="streakGoal">Daily Streak Goal (minutes of learning/productive time)</label>
+                <input type="number" id="streakGoal" min="5" max="480">
+                <small>A day counts toward your streak when it reaches this many minutes (5–480).</small>
             </div>
-            
+
             <div class="checkbox-group">
-                <input type="checkbox" id="enableNotifications" checked>
-                <label for="enableNotifications">Enable achievement notifications</label>
-            </div>
-            
-            <div class="checkbox-group">
-                <input type="checkbox" id="enableGoalReminders">
-                <label for="enableGoalReminders">Remind me to set daily goals</label>
+                <input type="checkbox" id="enableNotifications">
+                <label for="enableNotifications">Notify me when a focus session ends</label>
             </div>
         </div>
 
         <!-- Data & Privacy -->
         <div class="options-section">
-            <h2>🔒 Data & Privacy</h2>
-            
+            <h2>🔒 Data &amp; Privacy</h2>
+
             <div class="form-group">
-                <label for="dataRetention">Data Retention (days)</label>
+                <label for="dataRetention">Automatically delete activity older than</label>
                 <select id="dataRetention">
                     <option value="30">30 days</option>
-                    <option value="90" selected>90 days</option>
+                    <option value="90">90 days</option>
                     <option value="365">1 year</option>
                     <option value="0">Keep forever</option>
                 </select>
-                <small>Automatically delete old activity data</small>
+                <small>Applied automatically once a day. Activity and AI summaries older than this are deleted.</small>
             </div>
-            
+
             <div class="button-group">
-                <button id="exportAllData" class="action-btn secondary">📤 Export All Data</button>
-                <button id="clearOldData" class="action-btn secondary">🧹 Clear Old Data</button>
+                <button id="exportAllData" class="action-btn secondary">📤 Export Data (JSON)</button>
+                <button id="clearOldData" class="action-btn secondary">🧹 Clear Old Data Now</button>
                 <button id="resetSettings" class="action-btn danger">🔄 Reset All Settings</button>
             </div>
+            <small class="hint">Export never includes your API keys. Reset restores default settings (except the retention period) and keeps your activity data.</small>
+            <div id="dataStatus" class="status-message"></div>
         </div>
 
         <!-- Statistics -->
@@ -277,18 +277,17 @@ localhost</textarea>
         <!-- About -->
         <div class="options-section">
             <h2>ℹ️ About</h2>
-            <p><strong>Digital Digital Diary</strong> v1.0</p>
+            <p><strong>Digital Diary</strong> v<span id="version"></span></p>
             <p>Built for CS50x 2025 Final Project</p>
-            <p>A privacy-focused digital activity tracker that helps you understand and improve your online habits.</p>
-            
+            <p>A digital activity tracker that keeps your browsing data in your browser and helps you understand your online habits.</p>
+
             <div class="button-group">
-                <button id="viewSource" class="action-btn secondary">📋 View Source Code</button>
-                <button id="reportIssue" class="action-btn secondary">🐛 Report Issue</button>
+                <a id="viewSource" class="action-btn secondary" href="https://github.com/Arjav1512/CS50-FinalProject" target="_blank" rel="noopener">📋 View Source Code</a>
+                <a id="reportIssue" class="action-btn secondary" href="https://github.com/Arjav1512/CS50-FinalProject/issues" target="_blank" rel="noopener">🐛 Report Issue</a>
             </div>
         </div>
     </div>
 
-    <script src="utils.js"></script>
-    <script src="options.js"></script>
+    <script type="module" src="options.js"></script>
 </body>
 </html>
