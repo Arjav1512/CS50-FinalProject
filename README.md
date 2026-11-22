@@ -101,6 +101,7 @@ There are no content scripts and no web-accessible resources.
 ### How idle works
 - Chrome reports **idle** when there has been no keyboard or mouse input for **120 seconds**. If the tracked tab is not playing sound, the visit ends, and the end time is moved back by those 120 seconds, so time spent away is never counted. (A longer interval just avoids cutting off slow reading; it does not add time when you walk away.)
 - If the tracked tab **is playing sound** (`tab.audible`, e.g. a YouTube video or a podcast), the visit keeps counting while you are idle. The minute alarm re-checks the tab: once the sound stops and you are still idle, the visit ends at that moment.
+- If nothing is being tracked while you are idle (for example, the minute check landed in the silent gap between two autoplay videos) and the active tab of the focused window starts playing sound, the next minute check starts a new visit. A silent tab never starts one while you are idle.
 - **Locking the screen always ends the visit**, even if sound is playing.
 - When you start using the computer again, tracking resumes on the active tab.
 

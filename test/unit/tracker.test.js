@@ -171,6 +171,74 @@ test('audio stops while idle: the next flush ends the session at the current tim
   assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 345, 'nothing added afterwards');
 });
 
+// --- resuming while idle: a video keeps playing after the session ended ---
+
+test('idle, no session, active tab audible: the next flush starts a session', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  chrome._tabs.get(1).active = true;      // focused window's active tab
+  await chrome._setIdle('idle');          // user idle, nothing being tracked
+  assert.equal(await getSession(chrome), undefined);
+  chrome._tabs.get(1).audible = true;     // a video starts playing (autoplay)
+  advance(60);
+  await chrome._fireAlarm(ALARM_FLUSH);
+  const session = await getSession(chrome);
+  assert.equal(session?.tabId, 1);
+  assert.equal(session?.audibleWhileIdle, true);
+  await minutesPass(chrome, 5);
+  assert.equal(secondsFor(await getLog(chrome), 'youtube.com'), 300);
+});
+
+test('idle, no session, active tab silent: nothing starts', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  chrome._tabs.get(1).active = true;
+  chrome._tabs.get(1).audible = false;
+  await chrome._setIdle('idle');
+  await minutesPass(chrome, 5);
+  assert.equal(await getSession(chrome), undefined);
+  assert.equal((await getLog(chrome)).length, 0);
+});
+
+test('locked + audible active tab: nothing starts', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  chrome._tabs.get(1).active = true;
+  chrome._tabs.get(1).audible = true;
+  await chrome._setIdle('locked');
+  await minutesPass(chrome, 5);
+  assert.equal(await getSession(chrome), undefined);
+  assert.equal((await getLog(chrome)).length, 0);
+});
+
+test('autoplay gap: audible, silent at one flush, audible again -> tracking resumes at the next flush', async () => {
+  const chrome = setupBrowser();
+  await bootWorker(chrome);
+  const tab = chrome._tabs.get(1);
+  tab.audible = true;                     // video 1
+  await chrome._activate(1);
+  advance(120);
+  await chrome._setIdle('idle');          // kept alive by audio
+  await minutesPass(chrome, 2);           // 120 + 120 s so far
+  tab.audible = false;                    // silent gap between videos
+  advance(60);
+  await chrome._fireAlarm(ALARM_FLUSH);   // ends the session at this flush (+60 s)
+  assert.equal(await getSession(chrome), undefined);
+  tab.audible = true;                     // video 2 autoplays
+  advance(60);
+  await chrome._fireAlarm(ALARM_FLUSH);   // resumes here (the gap minute is not counted)
+  assert.equal((await getSession(chrome))?.audibleWhileIdle, true);
+  await minutesPass(chrome, 3);
+  const entries = (await getLog(chrome)).filter(e => e.domain === 'youtube.com');
+  assert.equal(entries.length, 2, 'two visits: before and after the gap');
+  assert.equal(secondsFor(entries, 'youtube.com'), 120 + 120 + 60 + 180);
+  // Video 2 ends and the user is still away: the next flush ends it again.
+  tab.audible = false;
+  advance(60);
+  await chrome._fireAlarm(ALARM_FLUSH);
+  assert.equal(await getSession(chrome), undefined);
+});
+
 test('screen locked ends the session immediately', async () => {
   const chrome = setupBrowser();
   await bootWorker(chrome);

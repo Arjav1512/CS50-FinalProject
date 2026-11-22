@@ -2,7 +2,7 @@
 
 All evidence below was produced in this session on 2026-11-22 (macOS, Node 22.20.0, Chrome for Testing 157 via Puppeteer 25.18.1).
 
-- `npm test` → `# tests 74  # pass 74  # fail 0` (after the idle/audio change below; it was 70/70 before)
+- `npm test` → `# tests 78  # pass 78  # fail 0` (after the follow-ups below; 74/74 after the idle/audio change, 70/70 before)
 - `npm run test:e2e` → `43/43 e2e checks passed, 0 skipped` (final run, with the OS reporting an active user; earlier unattended runs: 41/41, 2 skipped)
 
 Two e2e checks need the OS to report an active user (`chrome.idle`, 120 s threshold); on an unattended machine they print SKIP, never PASS. In the final run the user was active and both ran and passed: `tracking: first visit logged — logged 6s, real ≈6.1s` and `worker stopped mid-session: visit still logged within ±5s — logged 13s, real ≈13.2s (worker wake-up took ≈0.3s)`.
@@ -102,13 +102,13 @@ A separate reviewer agent was given only the original requirements and checked t
 | P6: placeholder links | Verified | Real repository URL used (given by owner); e2e: options: About links point to the real repository |
 | P6: icons 16/32/48/128 PNG | Verified | `file icons/*.png` → PNG RGBA at each size; used in manifest and notification |
 | P6: README rewritten with required sections | Verified | `README.md` |
-| P7: independent review; fixes; tests rerun | Verified | Section above; runs after the review: 70/70 and 41/41 (+2 skipped); final runs after the idle change: 74/74 and 43/43 (0 skipped) |
+| P7: independent review; fixes; tests rerun | Verified | Section above; runs after the review: 70/70 and 41/41 (+2 skipped); latest runs: 78/78 and 43/43 (0 skipped) |
 
 ### Success metrics
 
 | # | Metric | Status | Evidence |
 |---|---|---|---|
-| 1 | `npm test` passes, incl. all listed scenarios | Verified | 74/74 (70/70 before the idle/audio change). Restart ±5 s (52, 53), focus loss/regain (54), idle/active (55), simultaneous ends (57), normalization (1, 2), overrides (3), en-US/en-GB/en-IN migration (27–29), streak gap (46, 47), retention (70); numbers refer to the test list in this session's output |
+| 1 | `npm test` passes, incl. all listed scenarios | Verified | 78/78 (70/70 before the idle/audio follow-ups). Restart ±5 s (52, 53), focus loss/regain (54), idle/active (55), simultaneous ends (57), normalization (1, 2), overrides (3), en-US/en-GB/en-IN migration (27–29), streak gap (46, 47), retention (70); numbers refer to the test list in this session's output |
 | 2 | e2e: zero errors in worker and popup consoles; zero requests on a normal page with defaults; screenshots | Verified | e2e: service worker: zero errors; popup: zero console errors; positive control …; normal pages: zero network requests from the service worker; screenshots in `docs/screenshots/` |
 | 3 | Default settings: no page content read, nothing sent | Verified | unit: default settings: summarizing is refused, no page content is read and nothing is sent; no content scripts; e2e network checks |
 | 4 | No unused permissions; no `<all_urls>` content script | Verified | unit: manifest: …; manifest below |
@@ -128,6 +128,11 @@ Watching a video or listening to a podcast involves no input, so a 20-minute vid
 | flush(): idle and no longer audible → end at the current time | Verified | unit: audio stops while idle: the next flush ends the session at the current time |
 | IDLE_DETECTION_SECONDS raised 60 → 120 | Verified | `lib/tracker.js`; unit: idle then active … (120 s detection window); `chrome.idle._detectionInterval === 120` |
 | New tests detect the old behaviour | Verified | run against the previous commit's `lib/tracker.js`: 4 failures; with the change: 0 |
+| Resume while idle: no session, idle (not locked), focused window's active tab audible → start a session with `audibleWhileIdle: true` | Verified | unit: idle, no session, active tab audible: the next flush starts a session |
+| Idle, no session, tab silent → nothing starts | Verified | unit: idle, no session, active tab silent: nothing starts |
+| Locked + audible → nothing starts | Verified | unit: locked + audible active tab: nothing starts |
+| Autoplay gap (audible → silent at one flush → audible) → tracking resumes at the next flush | Verified | unit: autoplay gap: audible, silent at one flush, audible again -> tracking resumes at the next flush |
+| New resume tests detect the old behaviour | Verified | run against the previous commit's `lib/tracker.js`: 2 failures (the two "starts/resumes" tests; the silent and locked tests are guards that pass on both); with the change: 0 |
 | Real video/podcast in real Chrome | Needs manual check | `tab.audible` comes from Chrome's audio indicator; the automated runs use a mock |
 
 ## Raw command output
